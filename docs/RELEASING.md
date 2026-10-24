@@ -31,6 +31,29 @@ The Play flavor is signed with an upload key. Google Play App Signing re-signs
 the bundle with the app signing key, so the upload key never has to leave the
 CI secrets. The `libre` APK is signed with the same key for consistent updates.
 
+### Script
+
+From the repository root, as the repository owner:
+
+```bash
+./scripts/setup-release-signing.sh
+```
+
+The script:
+
+- creates `~/.config/ecorota/ecorota-upload.jks` with mode `0600` (or reuses an
+  existing keystore and checks the password);
+- reads the password interactively, never from an argument or a file in the
+  repository;
+- uploads the four secrets from stdin, so no value appears in `ps` or the shell
+  history;
+- prints only the secret names.
+
+Back up the keystore and its password in Bitwarden and in an offline copy
+immediately. A missing upload key blocks updates until Google Play resets it.
+
+### Manual setup
+
 Generate the key once, on a trusted machine:
 
 ```bash

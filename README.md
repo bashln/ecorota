@@ -74,7 +74,7 @@ Release artifacts are built by GitHub Actions, never on a development machine. P
 - `ecorota-play-<version>.apk` and `ecorota-libre-<version>.apk` for direct install
 - R8 mapping files and `SHA256SUMS.txt`
 
-Signing credentials live only in repository secrets. See [docs/RELEASING.md](docs/RELEASING.md) for the one-time setup, the tag workflow and the version code scheme.
+Signing credentials live only in repository secrets. Run [`scripts/setup-release-signing.sh`](scripts/setup-release-signing.sh) once as the repository owner, then follow [docs/RELEASING.md](docs/RELEASING.md) for the tag workflow and version code scheme.
 
 For a local signed release, create `keystore.properties` in the repository root (gitignored) with:
 
