@@ -59,6 +59,19 @@ class TripAnalyzer(config: ScoringConfig = ScoringConfig()) {
         val boundedDt = dtMs.coerceAtMost(MAX_GAP_MS)
         val speedKmh = sample.speedMps * 3.6
 
+        // A long gap means the app was suspended or lost the fix. Close what is
+        // open at the last known sample instead of stretching it over the gap.
+        if (previousMs != null && dtMs > MAX_GAP_MS) {
+            closeIdle(previousMs)
+            idleStartMs = null
+            for (pending in active.values.toList()) {
+                if (pending.lastUpdatedMs - pending.startedAtMs >= minimumDurationFor(pending.type)) {
+                    emit(pending, pending.lastUpdatedMs)
+                }
+            }
+            active.clear()
+        }
+
         if (previousMs != null) {
             if (speedKmh >= config.idleSpeedThresholdKmh) {
                 movingMs += boundedDt
@@ -81,12 +94,21 @@ class TripAnalyzer(config: ScoringConfig = ScoringConfig()) {
             ?: derivedLateralAcceleration(sample, dtSec)
 
         if (forward != null) {
+            // A sensor peak covers the time since the previous fix. Backdating the
+            // event start by that window keeps short real maneuvers from being
+            // discarded by the minimum-duration filter.
+            val forwardWindowMs = if (sample.accelForwardMps2 != null) {
+                boundedDt.coerceAtMost(MAX_SENSOR_WINDOW_MS)
+            } else {
+                0L
+            }
             updateEvent(
                 type = DrivingEventType.HARD_ACCELERATION,
                 condition = forward >= config.hardAccelThresholdMps2,
                 magnitude = abs(forward),
                 timestamp = timestamp,
                 sample = sample,
+                windowMs = forwardWindowMs,
             )
             updateEvent(
                 type = DrivingEventType.HARD_BRAKING,
@@ -94,15 +116,22 @@ class TripAnalyzer(config: ScoringConfig = ScoringConfig()) {
                 magnitude = abs(forward),
                 timestamp = timestamp,
                 sample = sample,
+                windowMs = forwardWindowMs,
             )
         }
         if (lateral != null) {
+            val lateralWindowMs = if (sample.accelLateralMps2 != null) {
+                boundedDt.coerceAtMost(MAX_SENSOR_WINDOW_MS)
+            } else {
+                0L
+            }
             updateEvent(
                 type = DrivingEventType.SHARP_CORNERING,
                 condition = lateral >= config.sharpCornerThresholdMps2,
                 magnitude = lateral,
                 timestamp = timestamp,
                 sample = sample,
+                windowMs = lateralWindowMs,
             )
         }
         updateOverspeed(timestamp, speedKmh, sample)
@@ -228,6 +257,7 @@ class TripAnalyzer(config: ScoringConfig = ScoringConfig()) {
         magnitude: Double,
         timestamp: Long,
         sample: TelemetrySample,
+        windowMs: Long = 0L,
     ) {
         val pending = active[type]
         if (condition) {
@@ -236,9 +266,10 @@ class TripAnalyzer(config: ScoringConfig = ScoringConfig()) {
                 val coolingDown = lastAt != null && timestamp - lastAt < config.eventCooldownMs
                 if (!coolingDown) {
                     val speedKmh = sample.speedMps * 3.6
+                    val earliestStart = startMs ?: timestamp
                     active[type] = PendingEvent(
                         type = type,
-                        startedAtMs = timestamp,
+                        startedAtMs = (timestamp - windowMs).coerceAtLeast(earliestStart),
                         lastUpdatedMs = timestamp,
                         peak = magnitude,
                         valueSum = magnitude,
@@ -357,6 +388,7 @@ class TripAnalyzer(config: ScoringConfig = ScoringConfig()) {
 
     private companion object {
         const val MAX_GAP_MS = 10_000L
+        const val MAX_SENSOR_WINDOW_MS = 3_000L
         const val MIN_MOVING_SPEED_MPS = 1.0
         const val MIN_SPEED_FOR_BEARING_CORNER_MPS = 4.0
         const val MIN_DERIVATIVE_WINDOW_SEC = 0.4

@@ -18,6 +18,8 @@ data class TripRecord(
     val manualStart: Boolean,
     val scoringVersion: Int,
     val createdAtMs: Long,
+    /** Downsampled speed series for the premium chart; may be empty for old trips. */
+    val speedSamples: List<SpeedSample> = emptyList(),
 ) {
     val durationMs: Long get() = (endedAtMs - startedAtMs).coerceAtLeast(0)
     val eventCount: Int get() = events.size
