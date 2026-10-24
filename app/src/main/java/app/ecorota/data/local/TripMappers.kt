@@ -84,11 +84,10 @@ object TripMappers {
             manualStart = trip.manualStart,
             scoringVersion = trip.scoringVersion,
             routePolyline = PolylineCodec.encode(trip.route.map { it.point }),
-            speedSeries = if (trip.speedSamples.isNotEmpty()) {
-                TripCodecs.encodeSpeedSeries(trip.speedSamples)
-            } else {
-                TripCodecs.speedSeriesOf(trip.route)
-            },
+            // One speed sample per route point keeps timestamps exact on read.
+            // Storing the analyzer's separate 5 s series here would leave the two
+            // columns with different lengths and force invented times in GPX.
+            speedSeries = TripCodecs.speedSeriesOf(trip.route),
         )
     }
 
@@ -138,7 +137,6 @@ object TripMappers {
         createdAtMs = trip.createdAtMs,
         speedSamples = TripCodecs.decodeSpeedSeries(trip.speedSeries),
     )
-
     private fun TripEntity.toBreakdown(): ScoreBreakdown = ScoreBreakdown(
         components = listOf(
             component(ScoreCategory.ACCELERATION, accelScore, accelWeight, accelEventCount, accelWeightedCount),

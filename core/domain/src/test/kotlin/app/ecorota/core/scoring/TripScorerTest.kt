@@ -396,8 +396,8 @@ class TripScorerTest {
                     event(
                         DrivingEventType.HARD_ACCELERATION,
                         3.0,
-                        startSpeedKmh = 60.0,
-                        endSpeedKmh = 40.0,
+                        startSpeedKmh = 40.0,
+                        endSpeedKmh = 60.0,
                     ),
                     event(DrivingEventType.OVERSPEED, 120.0, mean = 110.0, durationMs = 120_000L),
                     idle(60.0),

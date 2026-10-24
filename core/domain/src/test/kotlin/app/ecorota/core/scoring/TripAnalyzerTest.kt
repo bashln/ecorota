@@ -170,10 +170,25 @@ class TripAnalyzerTest {
         assertEquals(2, accelerations.size)
         assertEquals(0L, accelerations[0].startedAtMs)
         assertEquals(1_000L, accelerations[0].endedAtMs)
-        // A sensor peak reported at t=4000 covers the window since the previous
-        // fix, so the analyzer backdates the start by one sampling interval.
-        assertEquals(3_000L, accelerations[1].startedAtMs)
+        assertEquals(4_000L, accelerations[1].startedAtMs)
         assertEquals(5_000L, accelerations[1].endedAtMs)
+    }
+
+    @Test
+    fun `finishAtLastMovement drops the parked confirmation tail`() {
+        analyzer.onSample(sample(0L, 0.0, 20.0))
+        analyzer.onSample(sample(1_000L, 20.0, 20.0))
+        analyzer.onSample(sample(2_000L, 40.0, 20.0))
+        analyzer.onSample(sample(3_000L, 40.0, 0.0))
+        analyzer.onSample(sample(200_000L, 40.0, 0.0))
+
+        val analysis = analyzer.finishAtLastMovement()
+
+        assertEquals(2_000L, analysis.endedAtMs)
+        assertEquals(40.0, analysis.distanceMeters, 1.0)
+        assertEquals(2_000L, analysis.movingDurationMs)
+        assertEquals(0L, analysis.idleDurationMs)
+        assertTrue(analysis.events.none { it.type == DrivingEventType.IDLING })
     }
 
     @Test

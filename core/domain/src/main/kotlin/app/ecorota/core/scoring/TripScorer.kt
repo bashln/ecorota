@@ -319,9 +319,14 @@ object TripScorer {
                 event.durationMs / 3_600_000.0 * config.idleFuelLitersPerHour
             DrivingEventType.OVERSPEED -> overspeedFuelLiters(event, config)
             DrivingEventType.HARD_BRAKING ->
-                kineticFuelLiters(event, config, config.brakeWasteFactor)
+                kineticFuelLiters(event, config, config.brakeWasteFactor, accelerating = false)
             DrivingEventType.HARD_ACCELERATION ->
-                kineticFuelLiters(event, config, config.accelerationInefficiencyFactor)
+                kineticFuelLiters(
+                    event,
+                    config,
+                    config.accelerationInefficiencyFactor,
+                    accelerating = true,
+                )
             DrivingEventType.SHARP_CORNERING -> corneringFuelLiters(event, config)
         }
 
@@ -329,10 +334,15 @@ object TripScorer {
         event: DetectedEvent,
         config: ScoringConfig,
         factor: Double,
+        accelerating: Boolean,
     ): Double {
         val startMps = event.startSpeedKmh / 3.6
         val endMps = event.endSpeedKmh / 3.6
-        val deltaSquared = startMps * startMps - endMps * endMps
+        val deltaSquared = if (accelerating) {
+            endMps * endMps - startMps * startMps
+        } else {
+            startMps * startMps - endMps * endMps
+        }
         if (deltaSquared <= 0.0) return 0.0
         val energy = 0.5 * config.vehicleMassKg * deltaSquared * factor
         return fuelLitersFromEnergy(energy, config)

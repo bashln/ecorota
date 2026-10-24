@@ -45,6 +45,12 @@ class TripAnalyzer(config: ScoringConfig = ScoringConfig()) {
     private var idleStartPoint: GeoPoint? = null
     private var lastSpeedSampleMs = 0L
 
+    private var lastMovingTimestampMs: Long? = null
+    private var lastMovingDistanceMeters = 0.0
+    private var lastMovingDurationMs = 0L
+    private var lastMovingIdleMs = 0L
+    private var lastMovingMaxSpeedKmh = 0.0
+
     val isStarted: Boolean get() = startMs != null
 
     fun onSample(sample: TelemetrySample): TripAnalysis {
@@ -93,21 +99,12 @@ class TripAnalyzer(config: ScoringConfig = ScoringConfig()) {
             ?: derivedLateralAcceleration(sample, dtSec)
 
         if (forward != null) {
-            // A sensor peak covers the time since the previous fix. Backdating the
-            // event start by that window keeps short real maneuvers from being
-            // discarded by the minimum-duration filter.
-            val forwardWindowMs = if (sample.accelForwardMps2 != null) {
-                boundedDt.coerceAtMost(MAX_SENSOR_WINDOW_MS)
-            } else {
-                0L
-            }
             updateEvent(
                 type = DrivingEventType.HARD_ACCELERATION,
                 condition = forward >= config.hardAccelThresholdMps2,
                 magnitude = abs(forward),
                 timestamp = timestamp,
                 sample = sample,
-                windowMs = forwardWindowMs,
             )
             updateEvent(
                 type = DrivingEventType.HARD_BRAKING,
@@ -115,22 +112,15 @@ class TripAnalyzer(config: ScoringConfig = ScoringConfig()) {
                 magnitude = abs(forward),
                 timestamp = timestamp,
                 sample = sample,
-                windowMs = forwardWindowMs,
             )
         }
         if (lateral != null) {
-            val lateralWindowMs = if (sample.accelLateralMps2 != null) {
-                boundedDt.coerceAtMost(MAX_SENSOR_WINDOW_MS)
-            } else {
-                0L
-            }
             updateEvent(
                 type = DrivingEventType.SHARP_CORNERING,
                 condition = lateral >= config.sharpCornerThresholdMps2,
                 magnitude = lateral,
                 timestamp = timestamp,
                 sample = sample,
-                windowMs = lateralWindowMs,
             )
         }
         updateOverspeed(timestamp, speedKmh, sample)
@@ -139,6 +129,13 @@ class TripAnalyzer(config: ScoringConfig = ScoringConfig()) {
         if (distanceAnchorAccepted) lastPoint = sample.point
         lastSpeedMps = sample.speedMps
         lastBearingDeg = sample.bearingDeg
+        if (speedKmh >= config.idleSpeedThresholdKmh) {
+            lastMovingTimestampMs = timestamp
+            lastMovingDistanceMeters = distanceMeters
+            lastMovingDurationMs = movingMs
+            lastMovingIdleMs = idleMs
+            lastMovingMaxSpeedKmh = maxSpeedKmh
+        }
         return snapshot(timestamp)
     }
 
@@ -158,6 +155,41 @@ class TripAnalyzer(config: ScoringConfig = ScoringConfig()) {
     }
 
     fun snapshot(): TripAnalysis = snapshot(lastSampleMs ?: startMs ?: 0L)
+
+    /**
+     * Finishes an automatically detected trip at the last fix where the car was
+     * still moving. The confirmation window that proves the car is parked would
+     * otherwise count as avoidable idling and inflate the trip duration.
+     */
+    fun finishAtLastMovement(): TripAnalysis {
+        val cutoff = lastMovingTimestampMs ?: return finish()
+        closeIdle(cutoff)
+        val pendingEvents = active.values.toList()
+        active.clear()
+        for (pending in pendingEvents) {
+            val closeAt = pending.lastUpdatedMs.coerceAtMost(cutoff)
+            if (closeAt - pending.startedAtMs >= minimumDurationFor(pending.type)) {
+                emit(pending, closeAt)
+            }
+        }
+        val trimmedEvents = events
+            .filter { it.startedAtMs <= cutoff }
+            .map { event ->
+                if (event.endedAtMs > cutoff) event.copy(endedAtMs = cutoff) else event
+            }
+        return TripAnalysis(
+            startedAtMs = startMs ?: cutoff,
+            endedAtMs = cutoff,
+            distanceMeters = lastMovingDistanceMeters,
+            movingDurationMs = lastMovingDurationMs,
+            idleDurationMs = lastMovingIdleMs,
+            maxSpeedKmh = lastMovingMaxSpeedKmh,
+            events = trimmedEvents,
+            route = route.filter { it.timestampMs <= cutoff },
+            speedSamples = speedSamples.filter { it.timestampMs <= cutoff },
+            lastSpeedKmh = lastSpeedKmh,
+        )
+    }
 
     private fun snapshot(nowMs: Long): TripAnalysis {
         val start = startMs ?: nowMs
@@ -269,7 +301,6 @@ class TripAnalyzer(config: ScoringConfig = ScoringConfig()) {
         magnitude: Double,
         timestamp: Long,
         sample: TelemetrySample,
-        windowMs: Long = 0L,
     ) {
         val pending = active[type]
         if (condition) {
@@ -278,10 +309,9 @@ class TripAnalyzer(config: ScoringConfig = ScoringConfig()) {
                 val coolingDown = lastAt != null && timestamp - lastAt < config.eventCooldownMs
                 if (!coolingDown) {
                     val speedKmh = sample.speedMps * 3.6
-                    val earliestStart = startMs ?: timestamp
                     active[type] = PendingEvent(
                         type = type,
-                        startedAtMs = (timestamp - windowMs).coerceAtLeast(earliestStart),
+                        startedAtMs = timestamp,
                         lastUpdatedMs = timestamp,
                         peak = magnitude,
                         valueSum = magnitude,
@@ -400,7 +430,6 @@ class TripAnalyzer(config: ScoringConfig = ScoringConfig()) {
 
     private companion object {
         const val MAX_GAP_MS = 10_000L
-        const val MAX_SENSOR_WINDOW_MS = 3_000L
         const val MIN_MOVING_SPEED_MPS = 1.0
         const val MIN_SPEED_FOR_BEARING_CORNER_MPS = 4.0
         const val MIN_DERIVATIVE_WINDOW_SEC = 0.4

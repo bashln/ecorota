@@ -44,7 +44,7 @@ object TripStatistics {
         val zone = ZoneOffset.ofTotalSeconds(offsetMinutes * 60)
         return trips
             .groupBy { trip ->
-                LocalDate.ofInstant(Instant.ofEpochMilli(trip.startedAtMs), zone).toEpochDay()
+                Instant.ofEpochMilli(trip.startedAtMs).atZone(zone).toLocalDate().toEpochDay()
             }
             .map { (day, dailyTrips) ->
                 DailyTripTotals(
