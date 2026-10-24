@@ -17,6 +17,29 @@ val keystoreProperties = Properties().apply {
     }
 }
 
+// CI passes the upload key through the environment so no keystore or password
+// ever needs to exist in the repository. Local release builds can keep using
+// keystore.properties (gitignored).
+val releaseKeystorePath = providers.environmentVariable("RELEASE_KEYSTORE_PATH").orNull
+    ?: keystoreProperties.getProperty("storeFile")
+val releaseKeystorePassword = providers.environmentVariable("RELEASE_KEYSTORE_PASSWORD").orNull
+    ?: keystoreProperties.getProperty("storePassword")
+val releaseKeyAlias = providers.environmentVariable("RELEASE_KEY_ALIAS").orNull
+    ?: keystoreProperties.getProperty("keyAlias")
+val releaseKeyPassword = providers.environmentVariable("RELEASE_KEY_PASSWORD").orNull
+    ?: keystoreProperties.getProperty("keyPassword")
+val releaseSigningConfigured = listOf(
+    releaseKeystorePath,
+    releaseKeystorePassword,
+    releaseKeyAlias,
+    releaseKeyPassword,
+).all { !it.isNullOrBlank() }
+
+// A tag release overrides these with -PappVersionName / -PappVersionCode.
+// Without an override the local development values are used.
+val appVersionCode = providers.gradleProperty("appVersionCode").orNull?.toIntOrNull() ?: 1
+val appVersionName = providers.gradleProperty("appVersionName").orNull ?: "0.1.0"
+
 android {
     namespace = "app.ecorota"
     compileSdk = 36
@@ -25,8 +48,8 @@ android {
         applicationId = "app.ecorota"
         minSdk = 26
         targetSdk = 36
-        versionCode = 1
-        versionName = "0.1.0"
+        versionCode = appVersionCode
+        versionName = appVersionName
         vectorDrawables.useSupportLibrary = true
     }
 
@@ -47,12 +70,12 @@ android {
     }
 
     signingConfigs {
-        if (keystorePropertiesFile.exists()) {
+        if (releaseSigningConfigured) {
             create("release") {
-                storeFile = rootProject.file(keystoreProperties.getProperty("storeFile"))
-                storePassword = keystoreProperties.getProperty("storePassword")
-                keyAlias = keystoreProperties.getProperty("keyAlias")
-                keyPassword = keystoreProperties.getProperty("keyPassword")
+                storeFile = rootProject.file(releaseKeystorePath!!)
+                storePassword = releaseKeystorePassword
+                keyAlias = releaseKeyAlias
+                keyPassword = releaseKeyPassword
             }
         }
     }

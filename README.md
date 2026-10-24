@@ -60,13 +60,23 @@ cd ecorota
 # Unit tests for the scoring engine and data layer
 ./gradlew :core:domain:test :app:testPlayDebugUnitTest
 
-# Static analysis and release build
-./gradlew :app:lintPlayDebug :app:assemblePlayRelease
+# Static analysis
+./gradlew :app:lintPlayDebug :app:lintLibreDebug
 ```
 
-The APK is written to `app/build/outputs/apk/<flavor>/<buildType>/`.
+The APK is written to `app/build/outputs/apk/<flavor>/<buildType>/`. Debug builds are for local testing only.
 
-Release builds need a signing configuration. Create `keystore.properties` in the repository root (it is gitignored) with:
+## Releases
+
+Release artifacts are built by GitHub Actions, never on a development machine. Pushing a tag in the form `vMAJOR.MINOR.PATCH` runs [.github/workflows/release.yml](.github/workflows/release.yml), which tests, lints, signs and publishes a GitHub release with:
+
+- `ecorota-play-<version>.aab` for Google Play
+- `ecorota-play-<version>.apk` and `ecorota-libre-<version>.apk` for direct install
+- R8 mapping files and `SHA256SUMS.txt`
+
+Signing credentials live only in repository secrets. See [docs/RELEASING.md](docs/RELEASING.md) for the one-time setup, the tag workflow and the version code scheme.
+
+For a local signed release, create `keystore.properties` in the repository root (gitignored) with:
 
 ```properties
 storeFile=../ecorota-release.jks
@@ -75,7 +85,7 @@ keyAlias=...
 keyPassword=...
 ```
 
-`app/build.gradle.kts` picks it up automatically; without the file, release builds are unsigned. Never commit keystores or passwords.
+`app/build.gradle.kts` picks it up automatically. CI instead provides the same values through `RELEASE_KEYSTORE_PATH`, `RELEASE_KEYSTORE_PASSWORD`, `RELEASE_KEY_ALIAS` and `RELEASE_KEY_PASSWORD`. Without either source, release builds are unsigned. Never commit keystores or passwords.
 
 ### Product flavors
 
