@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="tracking_channel_name">Registro de viagens</string>
+    <string name="tracking_channel_description">Aparece enquanto o EcoRota procura viagens ou grava uma viagem.</string>
+
+    <string name="tracking_notification_monitoring_title">Procurando viagens</string>
+    <string name="tracking_notification_monitoring_text">Localização de baixo consumo ativa. A viagem começa sozinha quando você dirigir.</string>
+
+    <string name="tracking_notification_recording_title">Gravando viagem</string>
+    <string name="tracking_notification_recording_starting">Aguardando o primeiro sinal de GPS</string>
+    <string name="tracking_notification_recording_text">%1$.1f km</string>
+    <string name="tracking_notification_recording_with_score">%1$.1f km · nota %2$d</string>
+</resources>

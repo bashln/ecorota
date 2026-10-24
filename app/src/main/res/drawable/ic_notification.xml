@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Monochrome status bar icon: a road that curls into a leaf. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M11.2,2.4c-2.5,3.4 -2,6.4 0.5,8.3c2.3,1.8 2.7,4.6 0.4,7.9h-2.2c3-4 2.6-6.4 0.1-8.3c-2.6-2 -3.1-5 -0.5-7.9z" />
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M6,20.2h12v1.7h-12z" />
+</vector>

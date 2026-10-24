@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="tracking_channel_name">Trip tracking</string>
+    <string name="tracking_channel_description">Shown while EcoRota watches for drives or records a trip.</string>
+
+    <string name="tracking_notification_monitoring_title">Watching for drives</string>
+    <string name="tracking_notification_monitoring_text">Low-power location is on. A trip starts on its own when you drive.</string>
+
+    <string name="tracking_notification_recording_title">Recording trip</string>
+    <string name="tracking_notification_recording_starting">Waiting for the first GPS fix</string>
+    <string name="tracking_notification_recording_text">%1$.1f km</string>
+    <string name="tracking_notification_recording_with_score">%1$.1f km · score %2$d</string>
+</resources>
