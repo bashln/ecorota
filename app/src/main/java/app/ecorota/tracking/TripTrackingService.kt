@@ -117,6 +117,9 @@ class TripTrackingService : Service() {
     }
 
     private fun resumeMonitoringAfterRestart() {
+        // The system gives a sticky service only a few seconds to go foreground,
+        // so post the notification before touching DataStore.
+        startForegroundCompat(monitorNotification())
         val deps = TrackingGraph.get()
         if (deps == null) {
             Log.w(TAG, "Cannot resume monitoring: repositories are not installed")
@@ -238,7 +241,7 @@ class TripTrackingService : Service() {
         val startedAtMs = System.currentTimeMillis()
         analyzer = TripAnalyzer(scoringConfig)
         // Automatic recordings also stop themselves once the car is parked.
-        detector = if (automatic) TripDetector() else null
+        detector = if (automatic) TripDetector().apply { markDriving() } else null
         sensorFusion = (sensorFusion ?: SensorFusion(this)).also { it.start() }
         if (!locationSource.start(FusedLocationSource.Profile.RECORDING)) {
             Log.w(TAG, "Recording aborted: location updates could not start")

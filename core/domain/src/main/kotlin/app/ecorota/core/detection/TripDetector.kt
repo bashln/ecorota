@@ -63,4 +63,14 @@ class TripDetector(
         state = State.PARKED
         candidateSinceMs = null
     }
+
+    /**
+     * Marks the detector as already driving. Recording starts after the start
+     * confirmation, so waiting for another 15 s above 20 km/h would delay the
+     * automatic stop and miss trips that start in slow traffic.
+     */
+    fun markDriving() {
+        state = State.DRIVING
+        candidateSinceMs = null
+    }
 }

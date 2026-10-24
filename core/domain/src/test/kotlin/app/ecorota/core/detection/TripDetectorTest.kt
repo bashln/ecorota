@@ -115,6 +115,18 @@ class TripDetectorTest {
         )
     }
 
+    @Test
+    fun `markDriving allows a stop without a new start window`() {
+        detector.markDriving()
+        assertEquals(TripDetector.State.DRIVING, detector.state)
+
+        assertNull(detector.onFix(speedKmh = 2.0, timestampMs = 0L))
+        assertEquals(
+            TripDetector.Signal.StopTrip,
+            detector.onFix(speedKmh = 2.0, timestampMs = 150_000L),
+        )
+    }
+
     private fun startTrip() {
         detector.onFix(speedKmh = 25.0, timestampMs = 0L)
         detector.onFix(speedKmh = 25.0, timestampMs = 15_000L)

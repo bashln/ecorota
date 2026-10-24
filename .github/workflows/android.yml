@@ -42,7 +42,10 @@ jobs:
           ./gradlew
           :core:domain:test
           :app:testPlayDebugUnitTest
+          :app:testLibreDebugUnitTest
           :app:assemblePlayDebug
+          :app:assembleLibreDebug
           :app:lintPlayDebug
+          :app:lintLibreDebug
           --console=plain
           --stacktrace
