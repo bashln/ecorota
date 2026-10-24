@@ -302,8 +302,6 @@
     <string name="premium_source_community">Versão da comunidade</string>
     <string name="premium_source_debug">Concessão de depuração</string>
     <string name="premium_source_none">Nenhuma</string>
-    <string name="settings_support_title">Apoie o projeto</string>
-    <string name="settings_support_body">O EcoRota é gratuito e offline. Se ele ajuda você, pode apoiar o desenvolvimento.</string>
     <string name="settings_tip_body">Uma gorjeta única, separada do Premium. Não desbloqueia nada; apenas apoia o desenvolvimento.</string>
     <string name="settings_tip_buy">Pagar um café</string>
     <string name="settings_about_title">Sobre</string>

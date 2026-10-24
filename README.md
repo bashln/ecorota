@@ -33,7 +33,7 @@ All processing and storage happen on the device. The app has no account system, 
 
 The only network access is optional map tile download. The app asks for consent before requesting any tile from an OpenStreetMap server; until you allow it, maps draw the recorded route on an empty background using cached tiles only. You can revoke consent at any time in Settings.
 
-The Play build uses Google Play services for two things: location (Fused Location Provider) and the optional one-time premium purchase (Play Billing). EcoRota itself never uploads trips, scores, or location history. Google's own privacy policy applies to those platform services. The community (`libre`) build has no billing library and falls back to Android's platform location provider when Play services is absent.
+The Play build uses Google Play services for location and for the optional one-time premium purchase (Play Billing). EcoRota itself never uploads trips, scores, or location history. Google's own privacy policy applies to those platform services. The community (`libre`) build has no Play services or Play Billing dependency; it uses Android's platform location provider.
 
 Android cloud backup is disabled for EcoRota. Trips are personal location data, so they are not copied to Google Drive or transferred automatically.
 
@@ -66,7 +66,16 @@ cd ecorota
 
 The APK is written to `app/build/outputs/apk/<flavor>/<buildType>/`.
 
-Release builds need a signing configuration. Create `keystore.properties` outside version control and follow the standard Android signing setup. Never commit keystores or passwords.
+Release builds need a signing configuration. Create `keystore.properties` in the repository root (it is gitignored) with:
+
+```properties
+storeFile=../ecorota-release.jks
+storePassword=...
+keyAlias=...
+keyPassword=...
+```
+
+`app/build.gradle.kts` picks it up automatically; without the file, release builds are unsigned. Never commit keystores or passwords.
 
 ### Product flavors
 
@@ -75,7 +84,7 @@ Release builds need a signing configuration. Create `keystore.properties` outsid
 | `play` | `app.ecorota` | Google Play Billing | One-time purchase |
 | `libre` | `app.ecorota.libre` | None | Unlocked locally |
 
-The `libre` flavor is intended for F-Droid and self-builds. It has no Google dependence for billing. When Google Play services is absent, location falls back from the Fused Location Provider to the platform `LocationManager`, so recording still works on de-Googled devices.
+The `libre` flavor is intended for F-Droid and self-builds. It has no Google Play services dependency at all: billing is absent and location uses the platform `LocationManager`. The Play flavor uses the Fused Location Provider with a platform fallback for devices without Play services.
 
 To test billing, create these in-app products in Play Console and add your account as a license tester:
 
@@ -157,7 +166,17 @@ Contributions are welcome. Start with [CONTRIBUTING.md](CONTRIBUTING.md). In sho
 
 ## Support
 
-The app itself is free. The Play build asks for a one-time premium purchase for advanced features, and the Settings screen links to GitHub Sponsors for anyone who wants to support development without buying anything. There are no ads, and no ads will ever appear while driving.
+The app itself is free. The Play build offers a one-time premium purchase for advanced features plus an optional consumable tip in Settings. The tip unlocks nothing. The community build has neither. There are no ads, and no ads will ever appear while driving.
+
+## Roadmap
+
+The MVP is deliberately small. Planned work that does not compromise the offline design:
+
+- Optional encrypted cloud backup, strictly opt-in and off by default
+- Offline map packages (MBTiles) so maps work without any tile server
+- OBD-II fuel measurements for users who want calibrated rather than estimated consumption
+- Monthly trend comparison alongside the weekly view
+- Android Auto and Wear companions
 
 ## License
 

@@ -30,9 +30,9 @@ There is no analytics SDK, crash reporting SDK, advertising SDK, or backend serv
 
 ## Google Play services
 
-The Play build uses Google Play services for location and for the optional one-time purchase. EcoRota does not send trip data to Google or to any backend. The Fused Location Provider and Play Billing are platform services governed by Google's privacy policy. The community build has no billing library, and location falls back to the Android platform provider when Play services is not installed.
+The Play build uses Google Play services for location and for the optional one-time purchase. EcoRota does not send trip data to Google or to any backend. The Fused Location Provider and Play Billing are platform services governed by Google's privacy policy. The community build has no Play services or billing dependency and uses the Android platform location provider.
 
-Billing connects only when you open the premium screen, tap restore, or buy a tip. The app does not query Google Play in the background. Tips use a consumable Play product and are optional.
+The Play build checks for an existing purchase when it starts, when you open the premium screen, when you tap restore, or when you buy a tip.
 
 ## Permissions
 

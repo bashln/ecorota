@@ -300,12 +300,9 @@
     <string name="premium_source_community">Community build</string>
     <string name="premium_source_debug">Debug grant</string>
     <string name="premium_source_none">None</string>
-    <string name="settings_support_title">Support the project</string>
-    <string name="settings_support_body">EcoRota is free and offline. If it helps you, you can support development.</string>
     <string name="settings_tip_body">A one-time tip, separate from Premium. It unlocks nothing; it just supports development.</string>
     <string name="settings_tip_buy">Buy me a coffee</string>
-    <!-- Maintainers: change these two links if the project moves. -->
-    <string name="settings_support_url" translatable="false">https://github.com/sponsors/bashln</string>
+    <!-- Maintainers: change this link if the project moves. -->
     <string name="settings_source_url" translatable="false">https://github.com/bashln/ecorota</string>
     <string name="settings_about_title">About</string>
     <string name="settings_about_version">Version</string>

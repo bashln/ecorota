@@ -28,7 +28,7 @@ SensorFusion ──────────┘                                  
 2. `SensorFusion` low-pass filters gravity out of the accelerometer and projects linear acceleration onto the vehicle's forward and lateral axes, using the GPS bearing as heading. If no bearing is available, the analyzer derives acceleration from GPS speed changes.
 3. `TripAnalyzer` accumulates distance, moving and idle time, speed samples, a thinned route, and detected events. It is a state machine, not a batch job, so the same object serves the live HUD and the final record.
 4. `TripScorer` turns the analysis into a `ScoreBreakdown`, a `FuelEstimate`, and scored `DrivingEvent`s. It is pure and deterministic for a given analysis, vehicle, and configuration.
-5. On stop, the service discards trivial recordings, then writes a `TripRecord` through `TripRepository`. Route points are encoded with the Google polyline algorithm; speed samples use a compact `timestamp:speed` list.
+5. On stop, the service discards trivial recordings, then writes a `TripRecord` through `TripRepository`. Route points are encoded with the Google polyline algorithm and carry one timestamped speed sample each, so map rendering and GPX export reuse the same exact times.
 
 ## Package responsibilities
 
@@ -70,7 +70,7 @@ Idle ──auto start / manual start──> Recording ──manual stop / auto s
 ```
 
 - Monitoring is optional and requires background location permission. It samples low-power location and feeds `TripDetector`. After a drive is confirmed, it switches the same service to recording.
-- Recording updates the notification with distance and live score. It holds a partial wake lock only while receiving fixes.
+- Recording updates the notification with distance and live score. The foreground location service keeps the process alive while fixes arrive.
 - Sensors are registered only during recording. This is the main battery optimization: no sensor sampling while parked, and no high-accuracy GPS while monitoring.
 - If the process is killed, a sticky restart resumes monitoring, not recording. A partially recorded trip is lost rather than guessed, which avoids storing a route with a silent gap.
 
@@ -94,7 +94,9 @@ osmdroid renders OpenStreetMap tiles. Tiles are cached on disk. Any network down
 
 ## Location providers
 
-Tracking uses the Fused Location Provider when Google Play services is installed. Otherwise it falls back to the platform `LocationManager`, which keeps the community build usable on de-Googled devices. Both paths share the same two profiles: a low-power monitor and a balanced-power recording stream.
+The play flavor uses the Fused Location Provider and falls back to the platform `LocationManager` when Play services is unavailable. The libre flavor compiles only the platform provider, so its APK contains no Google location code. Both share the same two profiles: a low-power monitor and a balanced-power recording stream.
+
+Automatic detection is restored after a reboot by a boot receiver, but only when the user enabled it and still granted all-the-time location.
 
 ## Testing strategy
 

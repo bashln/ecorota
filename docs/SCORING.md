@@ -28,6 +28,7 @@ Rules that keep the event list honest:
 
 - An acceleration event must last at least 500 ms. A single noisy sample does not count.
 - After an event of a given type is emitted, the same type is suppressed for 3 s. This prevents one long maneuver from becoming five events.
+- An automatically detected trip ends at the last fix where the car was still moving. The confirmation window that proves the car is parked is not scored as idling and does not inflate the trip duration.
 - Overspeed uses a 4 km/h hysteresis band and needs 3 s above the limit. Hovering around 90 km/h does not create a stream of events.
 - An idling stop only becomes an event after 45 s. The first 15 s of the stop are treated as a normal traffic light and subtracted from the reported duration. Only the remaining time is scored and costed.
 - The list is capped by physics, not by a "maximum events" rule.

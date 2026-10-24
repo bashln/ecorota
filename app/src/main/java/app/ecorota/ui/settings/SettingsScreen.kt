@@ -21,7 +21,6 @@ import androidx.compose.material.icons.filled.DirectionsCar
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Lock
-import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -97,7 +96,6 @@ data class SettingsActions(
     val purchase: () -> Unit,
     val restorePurchase: () -> Unit,
     val tip: () -> Unit,
-    val openSupport: () -> Unit,
     val openSource: () -> Unit,
 )
 
@@ -158,9 +156,6 @@ fun SettingsRoute(container: AppContainer, onOpenPaywall: () -> Unit) {
         purchase = { viewModel.purchase(activity) },
         restorePurchase = viewModel::restorePurchase,
         tip = { viewModel.tip(activity) },
-        openSupport = {
-            context.openExternalUrl(context.getString(R.string.settings_support_url))
-        },
         openSource = {
             context.openExternalUrl(context.getString(R.string.settings_source_url))
         },
@@ -879,12 +874,6 @@ private fun PremiumSection(
             }
         }
         Spacer(Modifier.height(8.dp))
-        NavigationRow(
-            title = stringResource(R.string.settings_support_title),
-            description = stringResource(R.string.settings_support_body),
-            icon = Icons.Filled.Star,
-            onClick = actions.openSupport,
-        )
     }
 }
 
