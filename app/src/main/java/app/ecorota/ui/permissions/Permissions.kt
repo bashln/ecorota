@@ -119,18 +119,19 @@ fun rememberAutoDetectionOptIn(onEnable: () -> Unit): () -> Unit {
     val backgroundLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission(),
     ) { granted ->
-        if (!granted && Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+        if (granted) {
+            onEnable()
+        } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
             showSettingsHint = true
+        } else {
+            showLocationDenied = true
         }
-        onEnable()
     }
 
     val foregroundLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions(),
     ) { result ->
-        val granted = result[Manifest.permission.ACCESS_FINE_LOCATION] == true ||
-            result[Manifest.permission.ACCESS_COARSE_LOCATION] == true
-        if (granted) {
+        if (result[Manifest.permission.ACCESS_FINE_LOCATION] == true) {
             showBackgroundDisclosure = true
         } else {
             showLocationDenied = true
@@ -156,10 +157,7 @@ fun rememberAutoDetectionOptIn(onEnable: () -> Unit): () -> Unit {
 
     if (showBackgroundDisclosure) {
         AlertDialog(
-            onDismissRequest = {
-                showBackgroundDisclosure = false
-                onEnable()
-            },
+            onDismissRequest = { showBackgroundDisclosure = false },
             title = { Text(stringResource(R.string.auto_detection_background_title)) },
             text = { Text(stringResource(R.string.auto_detection_background_disclosure)) },
             confirmButton = {
@@ -167,9 +165,13 @@ fun rememberAutoDetectionOptIn(onEnable: () -> Unit): () -> Unit {
                     onClick = {
                         showBackgroundDisclosure = false
                         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                            backgroundLauncher.launch(
-                                Manifest.permission.ACCESS_BACKGROUND_LOCATION,
-                            )
+                            if (context.hasBackgroundLocationPermission()) {
+                                onEnable()
+                            } else {
+                                backgroundLauncher.launch(
+                                    Manifest.permission.ACCESS_BACKGROUND_LOCATION,
+                                )
+                            }
                         } else {
                             onEnable()
                         }
@@ -180,10 +182,7 @@ fun rememberAutoDetectionOptIn(onEnable: () -> Unit): () -> Unit {
             },
             dismissButton = {
                 TextButton(
-                    onClick = {
-                        showBackgroundDisclosure = false
-                        onEnable()
-                    },
+                    onClick = { showBackgroundDisclosure = false },
                 ) {
                     Text(stringResource(R.string.common_not_now))
                 }
