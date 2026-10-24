@@ -237,6 +237,8 @@ class TripTrackingService : Service() {
         if (mode != Mode.RECORDING) return
         val startedAtMs = System.currentTimeMillis()
         analyzer = TripAnalyzer(scoringConfig)
+        // Automatic recordings also stop themselves once the car is parked.
+        detector = if (automatic) TripDetector() else null
         sensorFusion = (sensorFusion ?: SensorFusion(this)).also { it.start() }
         if (!locationSource.start(FusedLocationSource.Profile.RECORDING)) {
             Log.w(TAG, "Recording aborted: location updates could not start")
@@ -329,6 +331,7 @@ class TripTrackingService : Service() {
             manualStart = manualStart,
             scoringVersion = ScoringVersion.CURRENT,
             createdAtMs = System.currentTimeMillis(),
+            speedSamples = analysis.speedSamples,
         )
     }
 
@@ -388,6 +391,12 @@ class TripTrackingService : Service() {
             accelLateralMps2 = peaks.lateralMps2,
         )
         val analysis = currentAnalyzer.onSample(sample)
+        if (automatic && detector?.onFix(speedMps * 3.6, location.time) ==
+            TripDetector.Signal.StopTrip
+        ) {
+            endRecording(resumeMonitoring = true)
+            return
+        }
         publishProgress(analysis)
     }
 
@@ -426,6 +435,7 @@ class TripTrackingService : Service() {
 
     private fun releaseRecording() {
         analyzer = null
+        detector = null
         sensorFusion?.stop()
         locationSource.stop()
         lastFix = null

@@ -84,7 +84,11 @@ object TripMappers {
             manualStart = trip.manualStart,
             scoringVersion = trip.scoringVersion,
             routePolyline = PolylineCodec.encode(trip.route.map { it.point }),
-            speedSeries = TripCodecs.speedSeriesOf(trip.route),
+            speedSeries = if (trip.speedSamples.isNotEmpty()) {
+                TripCodecs.encodeSpeedSeries(trip.speedSamples)
+            } else {
+                TripCodecs.speedSeriesOf(trip.route)
+            },
         )
     }
 
@@ -132,6 +136,7 @@ object TripMappers {
         manualStart = trip.manualStart,
         scoringVersion = trip.scoringVersion,
         createdAtMs = trip.createdAtMs,
+        speedSamples = TripCodecs.decodeSpeedSeries(trip.speedSeries),
     )
 
     private fun TripEntity.toBreakdown(): ScoreBreakdown = ScoreBreakdown(
