@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  The window cutout attribute in these two theme files needs API 27 while the
+  app supports API 26. It is ignored on API 26, so the cost is cosmetic on older
+  devices, and the UI work must not modify the theme files. Remove this
+  suppression when the attribute moves to a values-v27 variant.
+-->
+<lint>
+    <issue id="NewApi">
+        <ignore path="src/main/res/values/themes.xml" />
+        <ignore path="src/main/res/values-night/themes.xml" />
+    </issue>
+</lint>
