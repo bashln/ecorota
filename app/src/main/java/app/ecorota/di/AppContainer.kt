@@ -3,8 +3,7 @@ package app.ecorota.di
 import android.content.Context
 import app.ecorota.BuildConfig
 import app.ecorota.billing.BillingProvider
-import app.ecorota.billing.NoOpBillingProvider
-import app.ecorota.billing.PlayBillingProvider
+import app.ecorota.billing.createBillingProvider
 import app.ecorota.data.EntitlementRepository
 import app.ecorota.data.LocalPremiumRepository
 import app.ecorota.data.PremiumRepository
@@ -60,11 +59,7 @@ class AppContainer(context: Context) {
     val entitlementRepository: EntitlementRepository get() = premiumRepository
 
     val billingProvider: BillingProvider by lazy {
-        if (BuildConfig.BILLING_ENABLED) {
-            PlayBillingProvider(appContext, premiumRepository)
-        } else {
-            NoOpBillingProvider()
-        }
+        createBillingProvider(appContext, premiumRepository)
     }
 
     val trackingController: TrackingController by lazy {
@@ -90,15 +85,13 @@ class AppContainer(context: Context) {
             ),
         )
         MaintenanceScheduler(appContext).schedule()
-        if (BuildConfig.BILLING_ENABLED) {
-            billingProvider.start()
-            // Recovers a purchase that completed while the app was not running.
-            applicationScope.launch { billingProvider.restorePurchase() }
-        } else {
+        if (!BuildConfig.BILLING_ENABLED) {
             // The community build has no billing SDK. Premium is a local grant.
             applicationScope.launch {
                 premiumRepository.setPremium(true, PremiumSource.COMMUNITY_BUILD)
             }
         }
+        // Billing connects lazily, only when the user opens the paywall or asks
+        // to restore. A build that never shows those screens never talks to Play.
     }
 }

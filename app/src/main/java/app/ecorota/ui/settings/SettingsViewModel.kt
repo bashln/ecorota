@@ -37,6 +37,8 @@ enum class SettingsMessage {
     TRIPS_DELETED,
     TRIPS_DELETE_FAILED,
     SAVE_FAILED,
+    TIP_SUCCESS,
+    TIP_FAILED,
 }
 
 data class SettingsUiState(
@@ -195,6 +197,33 @@ class SettingsViewModel(private val container: AppContainer) : ViewModel() {
             working.value = false
             messageChannel.send(
                 if (restored) SettingsMessage.RESTORE_SUCCESS else SettingsMessage.RESTORE_NOTHING,
+            )
+        }
+    }
+
+    fun tip(activity: Activity?) {
+        if (!container.billingProvider.available) {
+            viewModelScope.launch { messageChannel.send(SettingsMessage.PURCHASE_UNAVAILABLE) }
+            return
+        }
+        if (activity == null) {
+            viewModelScope.launch { messageChannel.send(SettingsMessage.TIP_FAILED) }
+            return
+        }
+        if (working.value) return
+        working.value = true
+        viewModelScope.launch {
+            val result = runCatching { container.billingProvider.launchTip(activity) }
+                .getOrElse { PurchaseResult.Failed(it.message.orEmpty()) }
+            working.value = false
+            messageChannel.send(
+                when (result) {
+                    PurchaseResult.Success, PurchaseResult.AlreadyOwned ->
+                        SettingsMessage.TIP_SUCCESS
+                    PurchaseResult.Cancelled -> SettingsMessage.PURCHASE_CANCELLED
+                    PurchaseResult.Unavailable -> SettingsMessage.PURCHASE_UNAVAILABLE
+                    is PurchaseResult.Failed -> SettingsMessage.TIP_FAILED
+                },
             )
         }
     }

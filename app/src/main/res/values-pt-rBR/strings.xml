@@ -304,6 +304,8 @@
     <string name="premium_source_none">Nenhuma</string>
     <string name="settings_support_title">Apoie o projeto</string>
     <string name="settings_support_body">O EcoRota é gratuito e offline. Se ele ajuda você, pode apoiar o desenvolvimento.</string>
+    <string name="settings_tip_body">Uma gorjeta única, separada do Premium. Não desbloqueia nada; apenas apoia o desenvolvimento.</string>
+    <string name="settings_tip_buy">Pagar um café</string>
     <string name="settings_about_title">Sobre</string>
     <string name="settings_about_version">Versão</string>
     <string name="settings_about_license">Distribuído sob a licença MIT.</string>
@@ -323,6 +325,8 @@
     <string name="settings_msg_trips_deleted">Todas as viagens foram apagadas.</string>
     <string name="settings_msg_trips_delete_failed">Não foi possível apagar as viagens.</string>
     <string name="settings_msg_save_failed">Não foi possível salvar a alteração.</string>
+    <string name="settings_msg_tip_success">Obrigado por apoiar o EcoRota!</string>
+    <string name="settings_msg_tip_failed">Não foi possível concluir a gorjeta.</string>
 
     <!-- Vehicle editor -->
     <string name="vehicle_editor_title_add">Adicionar veículo</string>

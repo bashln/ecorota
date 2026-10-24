@@ -17,6 +17,9 @@ class NoOpBillingProvider : BillingProvider {
     override suspend fun launchPurchase(activity: Activity): PurchaseResult =
         PurchaseResult.Unavailable
 
+    override suspend fun launchTip(activity: Activity): PurchaseResult =
+        PurchaseResult.Unavailable
+
     override suspend fun restorePurchase(): Boolean = false
 
     override fun close() = Unit

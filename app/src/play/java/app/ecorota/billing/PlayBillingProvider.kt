@@ -10,6 +10,7 @@ import com.android.billingclient.api.BillingClient
 import com.android.billingclient.api.BillingClientStateListener
 import com.android.billingclient.api.BillingFlowParams
 import com.android.billingclient.api.BillingResult
+import com.android.billingclient.api.ConsumeParams
 import com.android.billingclient.api.PendingPurchasesParams
 import com.android.billingclient.api.ProductDetails
 import com.android.billingclient.api.Purchase
@@ -97,7 +98,7 @@ class PlayBillingProvider(
         }
 
         val product = try {
-            queryPremiumProduct(client)
+            queryProduct(client, PREMIUM_PRODUCT_ID)
         } catch (failure: BillingFailure) {
             return failure.toPurchaseResult()
         }
@@ -151,8 +152,70 @@ class PlayBillingProvider(
         }
     }
 
-    override suspend fun restorePurchase(): Boolean {
-        if (closed) return false
+    override suspend fun launchTip(activity: Activity): PurchaseResult {
+        val client = try {
+            ensureConnected()
+        } catch (failure: BillingFailure) {
+            return failure.toPurchaseResult()
+        }
+
+        val product = try {
+            queryProduct(client, TIP_PRODUCT_ID)
+        } catch (failure: BillingFailure) {
+            return failure.toPurchaseResult()
+        }
+
+        val flowParams = BillingFlowParams.newBuilder()
+            .setProductDetailsParamsList(
+                listOf(
+                    BillingFlowParams.ProductDetailsParams.newBuilder()
+                        .setProductDetails(product)
+                        .build(),
+                ),
+            )
+            .build()
+
+        val waiter = CompletableDeferred<PurchaseUpdate>()
+        synchronized(waiterLock) { purchaseWaiter = waiter }
+
+        val launchResult = try {
+            client.launchBillingFlow(activity, flowParams)
+        } catch (error: RuntimeException) {
+            clearWaiter(waiter)
+            Log.w(TAG, "tip billing flow could not start", error)
+            return PurchaseResult.Failed(responseCodeName(BillingClient.BillingResponseCode.ERROR))
+        }
+
+        if (launchResult.responseCode != BillingClient.BillingResponseCode.OK) {
+            clearWaiter(waiter)
+            return tipLaunchFailure(client, launchResult.responseCode)
+        }
+
+        val update = try {
+            withTimeoutOrNull(PURCHASE_TIMEOUT_MS) { waiter.await() }
+        } finally {
+            clearWaiter(waiter)
+        }
+
+        if (update == null) return PurchaseResult.Failed(PURCHASE_TIMEOUT)
+        if (update.result.responseCode != BillingClient.BillingResponseCode.OK) {
+            return tipLaunchFailure(client, update.result.responseCode)
+        }
+
+        val purchase = update.purchases.firstOrNull { TIP_PRODUCT_ID in it.products }
+            ?: return PurchaseResult.Failed(NO_PURCHASE_PRODUCT)
+        if (purchase.purchaseState != Purchase.PurchaseState.PURCHASED) {
+            return PurchaseResult.Failed(PENDING_PURCHASE)
+        }
+        val consumeCode = consume(client, purchase.purchaseToken)
+        return if (consumeCode == BillingClient.BillingResponseCode.OK) {
+            PurchaseResult.Success
+        } else {
+            PurchaseResult.Failed(responseCodeName(consumeCode))
+        }
+    }
+
+    override suspend fun restorePurchase(): Boolean {        if (closed) return false
 
         val client = try {
             ensureConnected()
@@ -229,12 +292,12 @@ class PlayBillingProvider(
         client
     }
 
-    private suspend fun queryPremiumProduct(client: BillingClient): ProductDetails {
+    private suspend fun queryProduct(client: BillingClient, productId: String): ProductDetails {
         val params = QueryProductDetailsParams.newBuilder()
             .setProductList(
                 listOf(
                     QueryProductDetailsParams.Product.newBuilder()
-                        .setProductId(PREMIUM_PRODUCT_ID)
+                        .setProductId(productId)
                         .setProductType(BillingClient.ProductType.INAPP)
                         .build(),
                 ),
@@ -253,7 +316,7 @@ class PlayBillingProvider(
         if (result.responseCode != BillingClient.BillingResponseCode.OK) {
             throw BillingFailure(result.responseCode)
         }
-        return response.second.firstOrNull { it.productId == PREMIUM_PRODUCT_ID }
+        return response.second.firstOrNull { it.productId == productId }
             ?: throw BillingFailure(BillingClient.BillingResponseCode.ITEM_UNAVAILABLE)
     }
 
@@ -277,8 +340,7 @@ class PlayBillingProvider(
         return response.second
     }
 
-    private suspend fun acknowledge(client: BillingClient, purchaseToken: String): Int {
-        val params = AcknowledgePurchaseParams.newBuilder()
+    private suspend fun acknowledge(client: BillingClient, purchaseToken: String): Int {        val params = AcknowledgePurchaseParams.newBuilder()
             .setPurchaseToken(purchaseToken)
             .build()
 
@@ -289,6 +351,48 @@ class PlayBillingProvider(
                 }
             }
         } ?: LOCAL_TIMEOUT_CODE
+    }
+
+    /** Consumes a tip so the same product can be bought again later. */
+    private suspend fun consume(client: BillingClient, purchaseToken: String): Int {
+        val params = ConsumeParams.newBuilder()
+            .setPurchaseToken(purchaseToken)
+            .build()
+        return withTimeoutOrNull(QUERY_TIMEOUT_MS) {
+            suspendCancellableCoroutine<Int> { continuation ->
+                client.consumeAsync(params) { result, _ ->
+                    if (continuation.isActive) continuation.resume(result.responseCode)
+                }
+            }
+        } ?: LOCAL_TIMEOUT_CODE
+    }
+
+    /**
+     * A tip is consumable. If Play reports it as already owned, the previous
+     * attempt never finished consuming it; finish that now and treat the tip as
+     * delivered rather than charging again.
+     */
+    private suspend fun consumeOwnedTips(client: BillingClient): Boolean {
+        val purchase = try {
+            queryInAppPurchases(client).firstOrNull {
+                TIP_PRODUCT_ID in it.products &&
+                    it.purchaseState == Purchase.PurchaseState.PURCHASED
+            }
+        } catch (failure: BillingFailure) {
+            Log.w(TAG, "owned tip query failed: ${responseCodeName(failure.responseCode)}")
+            null
+        } ?: return false
+        return consume(client, purchase.purchaseToken) == BillingClient.BillingResponseCode.OK
+    }
+
+    private suspend fun tipLaunchFailure(
+        client: BillingClient,
+        responseCode: Int,
+    ): PurchaseResult = when (responseCode) {
+        BillingClient.BillingResponseCode.USER_CANCELED -> PurchaseResult.Cancelled
+        BillingClient.BillingResponseCode.ITEM_ALREADY_OWNED ->
+            if (consumeOwnedTips(client)) PurchaseResult.Success else PurchaseResult.AlreadyOwned
+        else -> BillingFailure(responseCode).toPurchaseResult()
     }
 
     /** Acknowledges (when needed) and then grants the entitlement. */
@@ -308,8 +412,7 @@ class PlayBillingProvider(
      * Play reports [BillingClient.BillingResponseCode.ITEM_ALREADY_OWNED] without
      * the purchase, so query it back: the entitlement is granted, and an
      * unacknowledged purchase is acknowledged while there is a chance to.
-     */
-    private suspend fun grantOwnedPurchase(client: BillingClient) {
+     */    private suspend fun grantOwnedPurchase(client: BillingClient) {
         val purchase = try {
             queryInAppPurchases(client).firstOrNull {
                 PREMIUM_PRODUCT_ID in it.products && it.purchaseState == Purchase.PurchaseState.PURCHASED
@@ -354,6 +457,7 @@ class PlayBillingProvider(
 
     companion object {
         const val PREMIUM_PRODUCT_ID = "premium_unlock"
+        const val TIP_PRODUCT_ID = "tip_coffee"
 
         private const val TAG = "PlayBillingProvider"
         private const val CONNECT_TIMEOUT_MS = 10_000L

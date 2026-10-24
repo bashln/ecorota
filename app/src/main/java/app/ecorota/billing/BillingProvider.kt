@@ -22,6 +22,12 @@ interface BillingProvider {
 
     suspend fun launchPurchase(activity: Activity): PurchaseResult
 
+    /**
+     * One-time consumable tip. It grants nothing; Play consumes the purchase so
+     * the user can tip again later.
+     */
+    suspend fun launchTip(activity: Activity): PurchaseResult
+
     /** Queries Play for an existing one-time purchase. Returns true when owned. */
     suspend fun restorePurchase(): Boolean
 

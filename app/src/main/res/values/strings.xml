@@ -302,6 +302,8 @@
     <string name="premium_source_none">None</string>
     <string name="settings_support_title">Support the project</string>
     <string name="settings_support_body">EcoRota is free and offline. If it helps you, you can support development.</string>
+    <string name="settings_tip_body">A one-time tip, separate from Premium. It unlocks nothing; it just supports development.</string>
+    <string name="settings_tip_buy">Buy me a coffee</string>
     <!-- Maintainers: change these two links if the project moves. -->
     <string name="settings_support_url" translatable="false">https://github.com/sponsors/bashln</string>
     <string name="settings_source_url" translatable="false">https://github.com/bashln/ecorota</string>
@@ -324,6 +326,8 @@
     <string name="settings_msg_trips_deleted">All trips deleted.</string>
     <string name="settings_msg_trips_delete_failed">Could not delete the trips.</string>
     <string name="settings_msg_save_failed">Could not save the change.</string>
+    <string name="settings_msg_tip_success">Thank you for supporting EcoRota!</string>
+    <string name="settings_msg_tip_failed">The tip could not be completed.</string>
 
     <!-- Vehicle editor -->
     <string name="vehicle_editor_title_add">Add vehicle</string>

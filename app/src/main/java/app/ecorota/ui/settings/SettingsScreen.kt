@@ -18,6 +18,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.DirectionsCar
+import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Star
@@ -95,6 +96,7 @@ data class SettingsActions(
     val resetScoringConfig: () -> Unit,
     val purchase: () -> Unit,
     val restorePurchase: () -> Unit,
+    val tip: () -> Unit,
     val openSupport: () -> Unit,
     val openSource: () -> Unit,
 )
@@ -131,6 +133,8 @@ fun SettingsRoute(container: AppContainer, onOpenPaywall: () -> Unit) {
         SettingsMessage.TRIPS_DELETE_FAILED to
             stringResource(R.string.settings_msg_trips_delete_failed),
         SettingsMessage.SAVE_FAILED to stringResource(R.string.settings_msg_save_failed),
+        SettingsMessage.TIP_SUCCESS to stringResource(R.string.settings_msg_tip_success),
+        SettingsMessage.TIP_FAILED to stringResource(R.string.settings_msg_tip_failed),
     )
 
     LaunchedEffect(viewModel) {
@@ -153,6 +157,7 @@ fun SettingsRoute(container: AppContainer, onOpenPaywall: () -> Unit) {
         resetScoringConfig = viewModel::resetScoringConfig,
         purchase = { viewModel.purchase(activity) },
         restorePurchase = viewModel::restorePurchase,
+        tip = { viewModel.tip(activity) },
         openSupport = {
             context.openExternalUrl(context.getString(R.string.settings_support_url))
         },
@@ -848,6 +853,30 @@ private fun PremiumSection(
         if (state.working) {
             Spacer(Modifier.height(8.dp))
             LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+        }
+        if (state.billingAvailable) {
+            Spacer(Modifier.height(12.dp))
+            Text(
+                text = stringResource(R.string.settings_tip_body),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Spacer(Modifier.height(8.dp))
+            OutlinedButton(
+                onClick = actions.tip,
+                enabled = !state.working,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = 48.dp),
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.Favorite,
+                    contentDescription = null,
+                    modifier = Modifier.size(18.dp),
+                )
+                Spacer(Modifier.width(8.dp))
+                Text(stringResource(R.string.settings_tip_buy))
+            }
         }
         Spacer(Modifier.height(8.dp))
         NavigationRow(
