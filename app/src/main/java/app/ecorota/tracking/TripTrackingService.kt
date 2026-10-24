@@ -60,13 +60,15 @@ class TripTrackingService : Service() {
         },
     )
 
-    private lateinit var locationSource: FusedLocationSource
+    private lateinit var locationSource: LocationSource
     private var sensorFusion: SensorFusion? = null
     private var analyzer: TripAnalyzer? = null
     private var detector: TripDetector? = null
     private var lastFix: Location? = null
+    private var lastPublishedMs = 0L
 
     private var mode = Mode.IDLE
+    private var saving = false
     private var automatic = false
     private var autoDetectionEnabled = false
     private var vehicle: VehicleProfile = VehicleProfile.default()
@@ -75,7 +77,7 @@ class TripTrackingService : Service() {
     override fun onCreate() {
         super.onCreate()
         createNotificationChannel()
-        locationSource = FusedLocationSource(this) { location -> onFix(location) }
+        locationSource = createLocationSource(this) { location -> onFix(location) }
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -86,6 +88,9 @@ class TripTrackingService : Service() {
             resumeMonitoringAfterRestart()
             return START_STICKY
         }
+        // A stop intent must not kill the service while the finished trip is
+        // still being written. The save continues in the application scope.
+        if (saving) return START_STICKY
 
         when (action) {
             ACTION_START_MONITOR -> beginMonitoring()
@@ -156,6 +161,17 @@ class TripTrackingService : Service() {
             stopForegroundAndSelf()
             return
         }
+        if (!hasBackgroundLocationPermission()) {
+            Log.w(TAG, "Auto-detection needs all-the-time location")
+            startForegroundCompat(monitorNotification())
+            scope.launch {
+                runCatching {
+                    deps.settingsRepository.update { it.copy(autoDetectionEnabled = false) }
+                }.onFailure { Log.w(TAG, "Could not disable auto-detection", it) }
+                stopForegroundAndSelf()
+            }
+            return
+        }
 
         mode = Mode.MONITORING
         startForegroundCompat(monitorNotification())
@@ -175,7 +191,7 @@ class TripTrackingService : Service() {
 
     private fun startMonitorUpdates(): Boolean {
         detector = TripDetector()
-        if (!locationSource.start(FusedLocationSource.Profile.MONITOR)) {
+        if (!locationSource.start(LocationProfile.MONITOR)) {
             detector = null
             return false
         }
@@ -240,10 +256,11 @@ class TripTrackingService : Service() {
         if (mode != Mode.RECORDING) return
         val startedAtMs = System.currentTimeMillis()
         analyzer = TripAnalyzer(scoringConfig)
+        lastPublishedMs = 0L
         // Automatic recordings also stop themselves once the car is parked.
         detector = if (automatic) TripDetector().apply { markDriving() } else null
         sensorFusion = (sensorFusion ?: SensorFusion(this)).also { it.start() }
-        if (!locationSource.start(FusedLocationSource.Profile.RECORDING)) {
+        if (!locationSource.start(LocationProfile.RECORDING)) {
             Log.w(TAG, "Recording aborted: location updates could not start")
             releaseRecording()
             stopForegroundAndSelf()
@@ -259,13 +276,20 @@ class TripTrackingService : Service() {
         updateRecordingNotification(distanceKm = null, score = null)
     }
 
-    private fun endRecording(resumeMonitoring: Boolean) {
+    private fun endRecording(
+        resumeMonitoring: Boolean,
+        trimParkedTail: Boolean = false,
+    ) {
         if (mode != Mode.RECORDING) {
             stopForegroundAndSelf()
             return
         }
 
-        val analysis = analyzer?.finish()
+        val analysis = if (trimParkedTail) {
+            analyzer?.finishAtLastMovement()
+        } else {
+            analyzer?.finish()
+        }
         val wasAutomatic = automatic
         mode = Mode.IDLE
         releaseRecording()
@@ -287,7 +311,8 @@ class TripTrackingService : Service() {
 
         val vehicleSnapshot = vehicle
         val configSnapshot = scoringConfig
-        scope.launch {
+        saving = true
+        deps.applicationScope.launch {
             try {
                 val record = withContext(Dispatchers.Default) {
                     buildRecord(analysis, vehicleSnapshot, configSnapshot, manualStart = !wasAutomatic)
@@ -304,7 +329,8 @@ class TripTrackingService : Service() {
                         }
                 }
             } finally {
-                afterTripFinished(resumeMonitoring)
+                saving = false
+                scope.launch { afterTripFinished(resumeMonitoring) }
             }
         }
     }
@@ -397,10 +423,15 @@ class TripTrackingService : Service() {
         if (automatic && detector?.onFix(speedMps * 3.6, location.time) ==
             TripDetector.Signal.StopTrip
         ) {
-            endRecording(resumeMonitoring = true)
+            endRecording(resumeMonitoring = true, trimParkedTail = true)
             return
         }
-        publishProgress(analysis)
+        // Scoring and the notification are throttled so a long route does not
+        // allocate and re-score on every location callback.
+        if (location.time - lastPublishedMs >= LIVE_PUBLISH_INTERVAL_MS) {
+            lastPublishedMs = location.time
+            publishProgress(analysis)
+        }
     }
 
     private fun publishProgress(analysis: TripAnalysis) {
@@ -459,6 +490,13 @@ class TripTrackingService : Service() {
     }
 
     private fun hasLocationPermission(): Boolean = locationSource.hasPermission()
+
+    private fun hasBackgroundLocationPermission(): Boolean =
+        Build.VERSION.SDK_INT < Build.VERSION_CODES.Q ||
+            ContextCompat.checkSelfPermission(
+                this,
+                Manifest.permission.ACCESS_BACKGROUND_LOCATION,
+            ) == PackageManager.PERMISSION_GRANTED
 
     private fun hasFineLocationPermission(): Boolean =
         ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) ==
@@ -577,6 +615,7 @@ class TripTrackingService : Service() {
         private const val NOTIFICATION_ID = 42
         private const val UNKNOWN_ACCURACY_METERS = 25.0
         private const val MAX_DERIVED_SPEED_WINDOW_MS = 10_000L
+        private const val LIVE_PUBLISH_INTERVAL_MS = 5_000L
 
         const val ACTION_START_MONITOR = "app.ecorota.tracking.START_MONITOR"
         const val ACTION_START_RECORDING = "app.ecorota.tracking.START_RECORDING"

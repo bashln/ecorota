@@ -68,6 +68,7 @@ class AppContainer(context: Context) {
             tripRepository = tripRepository,
             vehicleRepository = vehicleRepository,
             settingsRepository = settingsRepository,
+            applicationScope = applicationScope,
         )
     }
 
@@ -82,16 +83,24 @@ class AppContainer(context: Context) {
                 tripRepository = tripRepository,
                 vehicleRepository = vehicleRepository,
                 settingsRepository = settingsRepository,
+                applicationScope = applicationScope,
             ),
         )
         MaintenanceScheduler(appContext).schedule()
-        if (!BuildConfig.BILLING_ENABLED) {
+        if (BuildConfig.BILLING_ENABLED) {
+            // Restores a purchase that completed while the app was not running
+            // and retries an acknowledgement that failed earlier.
+            applicationScope.launch { billingProvider.restorePurchase() }
+        } else {
             // The community build has no billing SDK. Premium is a local grant.
             applicationScope.launch {
                 premiumRepository.setPremium(true, PremiumSource.COMMUNITY_BUILD)
             }
         }
-        // Billing connects lazily, only when the user opens the paywall or asks
-        // to restore. A build that never shows those screens never talks to Play.
+        applicationScope.launch {
+            if (settingsRepository.current().autoDetectionEnabled) {
+                trackingController.refresh()
+            }
+        }
     }
 }

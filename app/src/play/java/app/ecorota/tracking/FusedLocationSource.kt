@@ -33,26 +33,7 @@ import com.google.android.gms.location.Priority
 class FusedLocationSource(
     context: Context,
     private val onFix: (Location) -> Unit,
-) {
-    enum class Profile(
-        val priority: Int,
-        val intervalMs: Long,
-        val minDistanceMeters: Float,
-        val maxDelayMs: Long,
-    ) {
-        MONITOR(
-            priority = Priority.PRIORITY_LOW_POWER,
-            intervalMs = 60_000L,
-            minDistanceMeters = 150f,
-            maxDelayMs = 0L,
-        ),
-        RECORDING(
-            priority = Priority.PRIORITY_BALANCED_POWER_ACCURACY,
-            intervalMs = 3_000L,
-            minDistanceMeters = 5f,
-            maxDelayMs = 10_000L,
-        ),
-    }
+) : LocationSource {
 
     private enum class ActiveSource { NONE, FUSED, PLATFORM }
 
@@ -76,7 +57,7 @@ class FusedLocationSource(
 
     private val platformListener = LocationListener { location -> onFix(location) }
 
-    fun hasPermission(): Boolean = PERMISSIONS.any {
+    override fun hasPermission(): Boolean = PERMISSIONS.any {
         ContextCompat.checkSelfPermission(appContext, it) == PackageManager.PERMISSION_GRANTED
     }
 
@@ -85,7 +66,7 @@ class FusedLocationSource(
      * permission is missing, no provider is enabled, or the provider refused
      * the request.
      */
-    fun start(profile: Profile): Boolean {
+    override fun start(profile: LocationProfile): Boolean {
         if (!hasPermission()) {
             Log.w(TAG, "Location permission is missing; not requesting updates")
             return false
@@ -95,12 +76,17 @@ class FusedLocationSource(
     }
 
     @SuppressLint("MissingPermission") // Checked by hasPermission above.
-    private fun startFused(profile: Profile): Boolean {
-        val builder = LocationRequest.Builder(profile.priority, profile.intervalMs)
+    private fun startFused(profile: LocationProfile): Boolean {
+        val priority = if (profile == LocationProfile.MONITOR) {
+            Priority.PRIORITY_LOW_POWER
+        } else {
+            Priority.PRIORITY_BALANCED_POWER_ACCURACY
+        }
+        val builder = LocationRequest.Builder(priority, profile.intervalMs)
             .setMinUpdateDistanceMeters(profile.minDistanceMeters)
             .setWaitForAccurateLocation(false)
-        if (profile.maxDelayMs > 0L) {
-            builder.setMaxUpdateDelayMillis(profile.maxDelayMs)
+        if (profile == LocationProfile.RECORDING) {
+            builder.setMaxUpdateDelayMillis(10_000L)
         }
 
         return try {
@@ -121,7 +107,7 @@ class FusedLocationSource(
     }
 
     @SuppressLint("MissingPermission") // Checked by hasPermission above.
-    private fun startPlatform(profile: Profile): Boolean {
+    private fun startPlatform(profile: LocationProfile): Boolean {
         val manager = appContext.getSystemService(LocationManager::class.java) ?: return false
         val provider = selectPlatformProvider(manager, profile) ?: run {
             Log.w(TAG, "No platform location provider is enabled")
@@ -152,7 +138,7 @@ class FusedLocationSource(
      */
     private fun selectPlatformProvider(
         manager: LocationManager,
-        profile: Profile,
+        profile: LocationProfile,
     ): String? {
         val network = manager.isProviderEnabled(LocationManager.NETWORK_PROVIDER)
         val gps = manager.isProviderEnabled(LocationManager.GPS_PROVIDER)
@@ -161,14 +147,14 @@ class FusedLocationSource(
             Manifest.permission.ACCESS_FINE_LOCATION,
         ) == PackageManager.PERMISSION_GRANTED
         return when {
-            profile == Profile.MONITOR && network -> LocationManager.NETWORK_PROVIDER
+            profile == LocationProfile.MONITOR && network -> LocationManager.NETWORK_PROVIDER
             hasFine && gps -> LocationManager.GPS_PROVIDER
             network -> LocationManager.NETWORK_PROVIDER
             else -> null
         }
     }
 
-    fun stop() {
+    override fun stop() {
         when (activeSource) {
             ActiveSource.FUSED -> try {
                 client.removeLocationUpdates(fusedCallback)

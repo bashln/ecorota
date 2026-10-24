@@ -45,6 +45,8 @@ jobs:
           :app:testLibreDebugUnitTest
           :app:assemblePlayDebug
           :app:assembleLibreDebug
+          :app:assemblePlayRelease
+          :app:assembleLibreRelease
           :app:lintPlayDebug
           :app:lintLibreDebug
           --console=plain

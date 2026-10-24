@@ -44,6 +44,8 @@ class SensorFusion(context: Context) {
     private var headingDeg: Double? = null
 
     private var running = false
+    private var accelerometerRegistered = false
+    private var gyroscopeRegistered = false
 
     /** False on a device without an accelerometer; tracking then relies on GPS speed. */
     val available: Boolean get() = accelerometer != null
@@ -74,14 +76,20 @@ class SensorFusion(context: Context) {
         projector.reset()
         peaks.reset()
         rotationGate.reset()
-        running = manager.registerListener(listener, accel, SensorManager.SENSOR_DELAY_GAME)
-        gyroscope?.let { manager.registerListener(listener, it, SensorManager.SENSOR_DELAY_GAME) }
+        accelerometerRegistered =
+            manager.registerListener(listener, accel, SensorManager.SENSOR_DELAY_GAME)
+        gyroscopeRegistered = gyroscope?.let {
+            manager.registerListener(listener, it, SensorManager.SENSOR_DELAY_GAME)
+        } ?: false
+        running = accelerometerRegistered || gyroscopeRegistered
     }
 
     fun stop() {
-        if (!running) return
+        if (!accelerometerRegistered && !gyroscopeRegistered) return
         running = false
         sensorManager?.unregisterListener(listener)
+        accelerometerRegistered = false
+        gyroscopeRegistered = false
         peaks.reset()
         headingDeg = null
     }

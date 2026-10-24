@@ -39,14 +39,15 @@ class TripMaintenanceWorker(
             throw cancelled
         } catch (error: Exception) {
             Log.e(TAG, "Trip maintenance failed", error)
-            if (runAttemptCount < MAX_ATTEMPTS) Result.retry() else Result.failure()
+            // A periodic worker that returns failure is cancelled for good, which
+            // would silently disable retention and cache pruning.
+            Result.retry()
         }
     }
 
     companion object {
         const val WORK_NAME = "ecorota-trip-maintenance"
         private const val TAG = "TripMaintenance"
-        private const val MAX_ATTEMPTS = 3
 
         /** osmdroid's default layout below the app cache directory. */
         private const val TILE_CACHE_DIRECTORY = "osmdroid/tiles"

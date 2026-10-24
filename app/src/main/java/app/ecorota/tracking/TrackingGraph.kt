@@ -3,12 +3,14 @@ package app.ecorota.tracking
 import app.ecorota.data.SettingsRepository
 import app.ecorota.data.TripRepository
 import app.ecorota.data.VehicleRepository
+import kotlinx.coroutines.CoroutineScope
 
-/** Repositories the tracking service and the maintenance worker need. */
+/** Repositories and the app-lifetime scope the tracking service and worker need. */
 class TrackingDependencies(
     val tripRepository: TripRepository,
     val vehicleRepository: VehicleRepository,
     val settingsRepository: SettingsRepository,
+    val applicationScope: CoroutineScope,
 )
 
 /**

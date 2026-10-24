@@ -12,10 +12,13 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.ui.res.stringResource
 import androidx.core.view.WindowCompat
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import app.ecorota.core.model.ThemeMode
@@ -23,6 +26,7 @@ import app.ecorota.ui.AppViewModel
 import app.ecorota.ui.EcoRotaRoot
 import app.ecorota.ui.components.LoadingState
 import app.ecorota.ui.theme.EcoRotaTheme
+import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
 
@@ -37,6 +41,12 @@ class MainActivity : ComponentActivity() {
             )
             val state by appViewModel.state.collectAsStateWithLifecycle()
             val live by container.trackingController.state.collectAsStateWithLifecycle()
+            val resumeScope = rememberCoroutineScope()
+            LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
+                // Reconciles the auto-detection switch with permissions the user
+                // may have changed in system settings while the app was away.
+                resumeScope.launch { container.trackingController.refresh() }
+            }
 
             val dark = when (state.settings.themeMode) {
                 ThemeMode.SYSTEM -> isSystemInDarkTheme()

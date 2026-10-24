@@ -397,14 +397,16 @@ class PlayBillingProvider(
 
     /** Acknowledges (when needed) and then grants the entitlement. */
     private suspend fun grant(client: BillingClient, purchase: Purchase): PurchaseResult {
+        // Grant first: the purchase is already paid and Play-verified. An
+        // acknowledgement failure is retried by restorePurchase (including at
+        // app start), while withholding the entitlement would punish the buyer.
+        premiumRepository.setPremium(true, PremiumSource.PLAY_BILLING)
         if (!purchase.isAcknowledged) {
             val code = acknowledge(client, purchase.purchaseToken)
             if (code != BillingClient.BillingResponseCode.OK) {
-                Log.w(TAG, "acknowledge failed: ${responseCodeName(code)}")
-                return PurchaseResult.Failed(responseCodeName(code))
+                Log.w(TAG, "acknowledge failed, will retry: ${responseCodeName(code)}")
             }
         }
-        premiumRepository.setPremium(true, PremiumSource.PLAY_BILLING)
         return PurchaseResult.Success
     }
 
