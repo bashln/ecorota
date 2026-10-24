@@ -73,6 +73,10 @@ jobs:
             exit 1
           fi
           code=$((10#$major * 10000 + 10#$minor * 100 + 10#$patch))
+          if (( code < 1 )); then
+            echo "::error title=Invalid version::versionCode must be at least 1."
+            exit 1
+          fi
           echo "name=$version" >> "$GITHUB_OUTPUT"
           echo "code=$code" >> "$GITHUB_OUTPUT"
           echo "Building EcoRota $version (versionCode $code)"
