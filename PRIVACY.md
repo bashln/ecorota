@@ -28,6 +28,12 @@ Two features can send data, and both require your action:
 
 There is no analytics SDK, crash reporting SDK, advertising SDK, or backend service in this project.
 
+## Google Play services
+
+The Play build uses Google Play services for location and for the optional one-time purchase. EcoRota does not send trip data to Google or to any backend. The Fused Location Provider and Play Billing are platform services governed by Google's privacy policy. The community build has no billing library, and location falls back to the Android platform provider when Play services is not installed.
+
+Billing connects only when you open the premium screen, tap restore, or buy a tip. The app does not query Google Play in the background. Tips use a consumable Play product and are optional.
+
 ## Permissions
 
 - **Location (fine and coarse).** Used to record your route and to detect when a drive starts and stops. Location is read only while a trip is being recorded or while optional auto-detection is enabled, and always with a visible foreground notification.

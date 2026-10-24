@@ -33,6 +33,8 @@ All processing and storage happen on the device. The app has no account system, 
 
 The only network access is optional map tile download. The app asks for consent before requesting any tile from an OpenStreetMap server; until you allow it, maps draw the recorded route on an empty background using cached tiles only. You can revoke consent at any time in Settings.
 
+The Play build uses Google Play services for two things: location (Fused Location Provider) and the optional one-time premium purchase (Play Billing). EcoRota itself never uploads trips, scores, or location history. Google's own privacy policy applies to those platform services. The community (`libre`) build has no billing library and falls back to Android's platform location provider when Play services is absent.
+
 Android cloud backup is disabled for EcoRota. Trips are personal location data, so they are not copied to Google Drive or transferred automatically.
 
 Read [PRIVACY.md](PRIVACY.md) for the full statement.
@@ -46,7 +48,7 @@ Requirements:
 - Android Studio (latest stable) or the Gradle wrapper
 
 ```bash
-git clone https://github.com/your-org/ecorota.git
+git clone https://github.com/bashln/ecorota.git
 cd ecorota
 
 # Debug build of the Play flavor
@@ -73,7 +75,16 @@ Release builds need a signing configuration. Create `keystore.properties` outsid
 | `play` | `app.ecorota` | Google Play Billing | One-time purchase |
 | `libre` | `app.ecorota.libre` | None | Unlocked locally |
 
-To test billing, create a one-time product with ID `premium_unlock` in Play Console and add your account as a license tester. Without Play, use the `libre` flavor.
+The `libre` flavor is intended for F-Droid and self-builds. It has no Google dependence for billing. When Google Play services is absent, location falls back from the Fused Location Provider to the platform `LocationManager`, so recording still works on de-Googled devices.
+
+To test billing, create these in-app products in Play Console and add your account as a license tester:
+
+| Product ID | Type | Purpose |
+| --- | --- | --- |
+| `premium_unlock` | One-time, non-consumable | Unlocks premium features |
+| `tip_coffee` | Consumable | Optional tip |
+
+Without Play, use the `libre` flavor. The tip is optional and unlocks nothing; it is separate from Premium.
 
 ## How the score works
 
@@ -132,7 +143,7 @@ Before publishing:
 2. Declare background location access in Play Console and provide an in-app prominent disclosure before requesting it. The onboarding flow includes that disclosure.
 3. Declare the foreground service location use. Recording requires an active trip or auto-detection.
 4. Publish the privacy policy URL. [PRIVACY.md](PRIVACY.md) is ready to host.
-5. Configure the `premium_unlock` in-app product and the license testers.
+5. Configure the `premium_unlock` one-time product, the optional `tip_coffee` consumable, and the license testers.
 6. Keep the target SDK within Play's current requirement. This project targets API 36.
 
 ## Contributing
@@ -143,6 +154,10 @@ Contributions are welcome. Start with [CONTRIBUTING.md](CONTRIBUTING.md). In sho
 - Keep the domain module free of Android imports.
 - Add or update unit tests for scoring changes.
 - Update `docs/SCORING.md` when you change a formula or a default.
+
+## Support
+
+The app itself is free. The Play build asks for a one-time premium purchase for advanced features, and the Settings screen links to GitHub Sponsors for anyone who wants to support development without buying anything. There are no ads, and no ads will ever appear while driving.
 
 ## License
 

@@ -92,6 +92,10 @@ There is no server receipt validation. A one-time purchase in Play is verified o
 
 osmdroid renders OpenStreetMap tiles. Tiles are cached on disk. Any network download is gated by an explicit consent setting; without consent, the map still draws the route, cached tiles, and attribution, but never contacts a tile server. A future offline map picker can plug into the same layer through an MBTiles archive without changing the trip screens.
 
+## Location providers
+
+Tracking uses the Fused Location Provider when Google Play services is installed. Otherwise it falls back to the platform `LocationManager`, which keeps the community build usable on de-Googled devices. Both paths share the same two profiles: a low-power monitor and a balanced-power recording stream.
+
 ## Testing strategy
 
 - `core:domain` unit tests cover event detection, scoring math, fuel physics, configuration handling, polyline coding, statistics, and auto-detection. These run on the JVM with no Android SDK.
