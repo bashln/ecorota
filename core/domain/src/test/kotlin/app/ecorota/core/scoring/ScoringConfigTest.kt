@@ -51,6 +51,17 @@ class ScoringConfigTest {
     }
 
     @Test
+    fun `sanitized clamps an inverted severity band without throwing`() {
+        val safe = ScoringConfig(
+            severityMildUpperRatio = 6.0,
+            severityModerateUpperRatio = 0.5,
+        ).sanitized()
+
+        assertEquals(3.0, safe.severityMildUpperRatio, 1e-12)
+        assertEquals(3.0, safe.severityModerateUpperRatio, 1e-12)
+    }
+
+    @Test
     fun `sanitized leaves the defaults untouched and is idempotent`() {
         val defaults = ScoringConfig()
         assertEquals(defaults, defaults.sanitized())

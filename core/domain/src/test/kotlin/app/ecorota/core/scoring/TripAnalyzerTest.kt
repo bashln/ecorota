@@ -40,6 +40,21 @@ class TripAnalyzerTest {
     }
 
     @Test
+    fun `distance recovers after a rejected gps jump`() {
+        analyzer.onSample(sample(timestampMs = 0L, northMeters = 0.0, speedMps = 20.0))
+        analyzer.onSample(sample(timestampMs = 1_000L, northMeters = 20.0, speedMps = 20.0))
+        val afterJump = analyzer.onSample(
+            sample(timestampMs = 2_000L, northMeters = 1_000.0, speedMps = 20.0),
+        )
+        assertEquals(20.0, afterJump.distanceMeters, 0.5)
+
+        val recovered = analyzer.onSample(
+            sample(timestampMs = 3_000L, northMeters = 40.0, speedMps = 20.0),
+        )
+        assertEquals(40.0, recovered.distanceMeters, 1.0)
+    }
+
+    @Test
     fun `distance ignores fixes less accurate than the limit`() {
         analyzer.onSample(sample(timestampMs = 0L, northMeters = 0.0, speedMps = 20.0))
         val analysis = analyzer.onSample(
@@ -155,7 +170,9 @@ class TripAnalyzerTest {
         assertEquals(2, accelerations.size)
         assertEquals(0L, accelerations[0].startedAtMs)
         assertEquals(1_000L, accelerations[0].endedAtMs)
-        assertEquals(4_000L, accelerations[1].startedAtMs)
+        // A sensor peak reported at t=4000 covers the window since the previous
+        // fix, so the analyzer backdates the start by one sampling interval.
+        assertEquals(3_000L, accelerations[1].startedAtMs)
         assertEquals(5_000L, accelerations[1].endedAtMs)
     }
 

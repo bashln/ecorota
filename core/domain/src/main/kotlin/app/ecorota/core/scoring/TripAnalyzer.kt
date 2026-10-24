@@ -80,11 +80,10 @@ class TripAnalyzer(config: ScoringConfig = ScoringConfig()) {
             }
         }
 
-        accumulateDistance(sample, dtSec)
+        val distanceAnchorAccepted = accumulateDistance(sample, dtSec)
         updateIdle(timestamp, speedKmh, sample.point)
-        updateRoute(timestamp, sample, speedKmh)
+        updateRoute(timestamp, sample, speedKmh, dtSec)
         updateSpeedSamples(timestamp, speedKmh)
-
         if (speedKmh > maxSpeedKmh) maxSpeedKmh = speedKmh
         lastSpeedKmh = speedKmh
 
@@ -137,7 +136,7 @@ class TripAnalyzer(config: ScoringConfig = ScoringConfig()) {
         updateOverspeed(timestamp, speedKmh, sample)
 
         lastSampleMs = timestamp
-        lastPoint = sample.point
+        if (distanceAnchorAccepted) lastPoint = sample.point
         lastSpeedMps = sample.speedMps
         lastBearingDeg = sample.bearingDeg
         return snapshot(timestamp)
@@ -181,22 +180,35 @@ class TripAnalyzer(config: ScoringConfig = ScoringConfig()) {
         )
     }
 
-    private fun accumulateDistance(sample: TelemetrySample, dtSec: Double) {
-        val previous = lastPoint ?: return
-        if (sample.speedMps < MIN_MOVING_SPEED_MPS) return
-        if (sample.accuracyMeters > config.maxAccuracyForDistanceMeters) return
+    private fun accumulateDistance(sample: TelemetrySample, dtSec: Double): Boolean {
+        val previous = lastPoint ?: return true
+        if (sample.speedMps < MIN_MOVING_SPEED_MPS) return true
+        if (sample.accuracyMeters > config.maxAccuracyForDistanceMeters) return false
         val distance = GeoMath.distanceMeters(previous, sample.point)
         // Rejects GPS jumps without discarding legitimate fast movement.
         val plausible = distance <= max(150.0, sample.speedMps * max(dtSec, 1.0) * 4.0 + 50.0)
         if (plausible) distanceMeters += distance
+        return plausible
     }
 
-    private fun updateRoute(timestamp: Long, sample: TelemetrySample, speedKmh: Double) {
+    private fun updateRoute(
+        timestamp: Long,
+        sample: TelemetrySample,
+        speedKmh: Double,
+        dtSec: Double,
+    ) {
         if (sample.accuracyMeters > MAX_ROUTE_ACCURACY_METERS) return
         val lastRoutePoint = route.lastOrNull()
-        val shouldAdd = lastRoutePoint == null ||
-            GeoMath.distanceMeters(lastRoutePoint.point, sample.point) >= ROUTE_MIN_SPACING_METERS
-        if (shouldAdd) {
+        if (lastRoutePoint == null) {
+            route += RoutePoint(timestamp, sample.point, speedKmh)
+            return
+        }
+        val distance = GeoMath.distanceMeters(lastRoutePoint.point, sample.point)
+        val plausible = distance <= max(
+            ROUTE_JUMP_FLOOR_METERS,
+            sample.speedMps * max(dtSec, 1.0) * 4.0 + 50.0,
+        )
+        if (plausible && distance >= ROUTE_MIN_SPACING_METERS) {
             route += RoutePoint(timestamp, sample.point, speedKmh)
         }
     }
@@ -396,5 +408,6 @@ class TripAnalyzer(config: ScoringConfig = ScoringConfig()) {
         const val MAX_ACCEL = 10.0
         const val MAX_ROUTE_ACCURACY_METERS = 100.0
         const val ROUTE_MIN_SPACING_METERS = 8.0
+        const val ROUTE_JUMP_FLOOR_METERS = 200.0
     }
 }
