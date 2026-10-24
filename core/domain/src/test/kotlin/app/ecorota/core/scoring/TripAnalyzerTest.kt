@@ -64,6 +64,14 @@ class TripAnalyzerTest {
     }
 
     @Test
+    fun `a single sensor spike does not create an event`() {
+        analyzer.onSample(sample(0L, 0.0, 20.0, accelForwardMps2 = 4.0))
+        val analysis = analyzer.onSample(sample(1_000L, 20.0, 20.0, accelForwardMps2 = 0.0))
+
+        assertTrue(analysis.events.none { it.type == DrivingEventType.HARD_ACCELERATION })
+    }
+
+    @Test
     fun `hard acceleration is detected from the forward sensor`() {
         analyzer.onSample(sample(0L, 0.0, 20.0, accelForwardMps2 = 3.0))
         analyzer.onSample(sample(1_000L, 20.0, 20.0, accelForwardMps2 = 3.0))
