@@ -31,7 +31,7 @@ Premium is a single in-app purchase. There is no subscription. The community bui
 
 All processing and storage happen on the device. The app has no account system, no analytics SDK, and no backend.
 
-The only network access is optional map tile download. The app asks for consent before requesting any tile from an OpenStreetMap server; until you allow it, maps draw the recorded route on an empty background using cached tiles only. You can revoke consent at any time in Settings.
+Network access is optional and opt-in: map tile download from OpenStreetMap, and, in the community build, an update check against GitHub Releases. Both are off by default and can be revoked in Settings. Until map downloads are allowed, maps draw the recorded route on an empty background using cached tiles only.
 
 The Play build uses Google Play services for location and for the optional one-time premium purchase (Play Billing). EcoRota itself never uploads trips, scores, or location history. Google's own privacy policy applies to those platform services. The community (`libre`) build has no Play services or Play Billing dependency; it uses Android's platform location provider.
 
@@ -75,6 +75,8 @@ Release artifacts are built by GitHub Actions, never on a development machine. P
 - R8 mapping files and `SHA256SUMS.txt`
 
 Signing credentials live only in repository secrets. Run [`scripts/setup-release-signing.sh`](scripts/setup-release-signing.sh) once as the repository owner, then follow [docs/RELEASING.md](docs/RELEASING.md) for the tag workflow and version code scheme.
+
+The community build can check these public releases from **Settings > Updates**. The check is opt-in and off by default. A downloaded APK is verified against `SHA256SUMS.txt` and against the installed app's signing certificate before the Android installer opens. The Play build does not check for updates and does not request the install-packages permission.
 
 For a local signed release, create `keystore.properties` in the repository root (gitignored) with:
 

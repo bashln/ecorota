@@ -16,6 +16,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material3.Button
@@ -57,6 +58,7 @@ import app.ecorota.ui.format.Formatters
 import app.ecorota.ui.permissions.AppPermissionsState
 import app.ecorota.ui.permissions.rememberAppPermissions
 import app.ecorota.ui.permissions.rememberAutoDetectionOptIn
+import app.ecorota.update.UpdateState
 import java.util.Locale
 
 @Composable
@@ -65,9 +67,11 @@ fun HomeRoute(
     onOpenTrip: (String) -> Unit,
     onOpenHistory: () -> Unit,
     onOpenPaywall: () -> Unit,
+    onOpenSettings: () -> Unit,
 ) {
     val viewModel: HomeViewModel = viewModel(factory = HomeViewModel.factory(container))
     val state by viewModel.state.collectAsStateWithLifecycle()
+    val updateState by container.updateController.state.collectAsStateWithLifecycle()
     val permissions = rememberAppPermissions()
     val requestAutoDetection = rememberAutoDetectionOptIn(
         onEnable = { viewModel.setAutoDetectionEnabled(true) },
@@ -76,6 +80,7 @@ fun HomeRoute(
     HomeScreen(
         state = state,
         permissions = permissions,
+        updateState = updateState,
         onStart = viewModel::startRecording,
         onStop = viewModel::stopRecording,
         onAutoDetectionChange = { enabled ->
@@ -84,6 +89,7 @@ fun HomeRoute(
         onOpenTrip = onOpenTrip,
         onOpenHistory = onOpenHistory,
         onOpenPaywall = onOpenPaywall,
+        onOpenSettings = onOpenSettings,
     )
 }
 
@@ -91,12 +97,14 @@ fun HomeRoute(
 private fun HomeScreen(
     state: HomeUiState,
     permissions: AppPermissionsState,
+    updateState: UpdateState,
     onStart: () -> Unit,
     onStop: () -> Unit,
     onAutoDetectionChange: (Boolean) -> Unit,
     onOpenTrip: (String) -> Unit,
     onOpenHistory: () -> Unit,
     onOpenPaywall: () -> Unit,
+    onOpenSettings: () -> Unit,
 ) {
     if (state.loading) {
         LoadingState(label = stringResource(R.string.common_loading))
@@ -136,6 +144,27 @@ private fun HomeScreen(
                     icon = Icons.Filled.LocationOn,
                     containerColor = MaterialTheme.colorScheme.errorContainer,
                     contentColor = MaterialTheme.colorScheme.onErrorContainer,
+                )
+            }
+        }
+
+        val availableUpdate = when (updateState) {
+            is UpdateState.Available -> updateState.update
+            is UpdateState.Ready -> updateState.update
+            else -> null
+        }
+        if (availableUpdate != null) {
+            item {
+                NoticeBanner(
+                    text = stringResource(
+                        R.string.home_update_available,
+                        availableUpdate.versionName,
+                    ),
+                    actionLabel = stringResource(R.string.home_update_action),
+                    onAction = onOpenSettings,
+                    icon = Icons.Filled.Refresh,
+                    containerColor = MaterialTheme.colorScheme.primaryContainer,
+                    contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
                 )
             }
         }

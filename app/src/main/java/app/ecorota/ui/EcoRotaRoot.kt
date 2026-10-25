@@ -107,6 +107,7 @@ private fun MainShell(container: AppContainer) {
                     onOpenTrip = { navController.navigate("trip/${Uri.encode(it)}") },
                     onOpenHistory = { navController.navigateTopLevel(ROUTE_HISTORY) },
                     onOpenPaywall = { navController.navigate(ROUTE_PAYWALL) },
+                    onOpenSettings = { navController.navigateTopLevel(ROUTE_SETTINGS) },
                 )
             }
             composable(ROUTE_HISTORY) {

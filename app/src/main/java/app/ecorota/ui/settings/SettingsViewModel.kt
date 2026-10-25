@@ -86,6 +86,10 @@ class SettingsViewModel(private val container: AppContainer) : ViewModel() {
 
     fun setSpeedUnit(unit: SpeedUnit) = updateSettings { it.copy(speedUnit = unit) }
 
+    fun setUpdateChecks(enabled: Boolean) = updateSettings {
+        it.copy(checkForUpdates = enabled)
+    }
+
     fun setKeepScreenOn(enabled: Boolean) = updateSettings {
         it.copy(keepScreenOnDuringTrip = enabled)
     }

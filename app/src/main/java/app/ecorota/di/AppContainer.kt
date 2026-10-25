@@ -22,6 +22,8 @@ import app.ecorota.tracking.TrackingController
 import app.ecorota.tracking.TrackingControllerImpl
 import app.ecorota.tracking.TrackingDependencies
 import app.ecorota.tracking.TrackingGraph
+import app.ecorota.update.UpdateController
+import app.ecorota.update.createUpdateController
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -74,6 +76,15 @@ class AppContainer(context: Context) {
 
     val tripExporter: TripExporter by lazy { DefaultTripExporter() }
 
+    val updateController: UpdateController by lazy {
+        createUpdateController(
+            context = appContext,
+            settingsRepository = settingsRepository,
+            scope = applicationScope,
+            currentVersionCode = BuildConfig.VERSION_CODE,
+        )
+    }
+
     init {
         // Android instantiates the service and the worker itself, so they cannot
         // receive constructor dependencies. Publish the graph before any of them
@@ -87,6 +98,7 @@ class AppContainer(context: Context) {
             ),
         )
         MaintenanceScheduler(appContext).schedule()
+        updateController.start()
         if (BuildConfig.BILLING_ENABLED) {
             // Restores a purchase that completed while the app was not running
             // and retries an acknowledgement that failed earlier.

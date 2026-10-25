@@ -57,6 +57,7 @@ private object SettingsKeys {
     val ConsumptionUnit = stringPreferencesKey("consumption_unit")
     val Currency = stringPreferencesKey("currency")
     val AllowMapTileDownloads = booleanPreferencesKey("allow_map_tile_downloads")
+    val CheckForUpdates = booleanPreferencesKey("check_for_updates")
     val KeepScreenOnDuringTrip = booleanPreferencesKey("keep_screen_on_during_trip")
     val DataRetentionDays = intPreferencesKey("data_retention_days")
     val ScoringConfig = stringPreferencesKey("scoring_config")
@@ -79,6 +80,7 @@ private fun Preferences.toAppSettings(): AppSettings {
         currency = this[SettingsKeys.Currency] ?: defaults.currency,
         allowMapTileDownloads = this[SettingsKeys.AllowMapTileDownloads]
             ?: defaults.allowMapTileDownloads,
+        checkForUpdates = this[SettingsKeys.CheckForUpdates] ?: defaults.checkForUpdates,
         keepScreenOnDuringTrip = this[SettingsKeys.KeepScreenOnDuringTrip]
             ?: defaults.keepScreenOnDuringTrip,
         dataRetentionDays = this[SettingsKeys.DataRetentionDays] ?: defaults.dataRetentionDays,
@@ -94,6 +96,7 @@ private fun MutablePreferences.writeSettings(settings: AppSettings) {
     this[SettingsKeys.ConsumptionUnit] = settings.consumptionUnit.name
     this[SettingsKeys.Currency] = settings.currency
     this[SettingsKeys.AllowMapTileDownloads] = settings.allowMapTileDownloads
+    this[SettingsKeys.CheckForUpdates] = settings.checkForUpdates
     this[SettingsKeys.KeepScreenOnDuringTrip] = settings.keepScreenOnDuringTrip
     this[SettingsKeys.DataRetentionDays] = settings.dataRetentionDays
     this[SettingsKeys.ScoringConfig] = ScoringConfigCodec.encode(settings.scoringConfig)
