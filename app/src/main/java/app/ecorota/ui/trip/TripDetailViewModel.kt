@@ -100,6 +100,12 @@ class TripDetailViewModel(
         initialValue = TripDetailUiState(),
     )
 
+    fun setMapTileDownloads(enabled: Boolean) {
+        viewModelScope.launch {
+            container.settingsRepository.update { it.copy(allowMapTileDownloads = enabled) }
+        }
+    }
+
     fun exportGpx(resolver: ContentResolver, uri: Uri) {
         val record = trip.value ?: return
         if (status.value.working) return

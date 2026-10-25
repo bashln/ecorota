@@ -171,6 +171,7 @@
     <string name="detail_map_empty_body">This trip was saved without GPS points.</string>
     <string name="map_attribution">© OpenStreetMap contributors</string>
     <string name="detail_tiles_off">Map downloads are off. Only cached tiles are shown.</string>
+    <string name="detail_map_enable">Enable map</string>
     <string name="detail_stats_title">Trip stats</string>
     <string name="detail_stat_distance">Distance</string>
     <string name="detail_stat_duration">Duration</string>

@@ -172,6 +172,7 @@
     <string name="detail_map_empty_body">Esta viagem foi salva sem pontos de GPS.</string>
     <string name="map_attribution">© OpenStreetMap contributors</string>
     <string name="detail_tiles_off">O download de mapas está desligado. Apenas tiles em cache são exibidos.</string>
+    <string name="detail_map_enable">Ativar mapa</string>
     <string name="detail_stats_title">Estatísticas da viagem</string>
     <string name="detail_stat_distance">Distância</string>
     <string name="detail_stat_duration">Duração</string>

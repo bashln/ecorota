@@ -132,6 +132,7 @@ fun TripDetailRoute(
         snackbarHostState = snackbarHostState,
         onBack = onBack,
         onOpenPaywall = onOpenPaywall,
+        onSetMapTiles = viewModel::setMapTileDownloads,
         onExportGpx = {
             state.trip?.let { trip ->
                 gpxLauncher.launch(container.tripExporter.gpxFileName(trip))
@@ -152,12 +153,14 @@ private fun TripDetailScreen(
     snackbarHostState: SnackbarHostState,
     onBack: () -> Unit,
     onOpenPaywall: () -> Unit,
+    onSetMapTiles: (Boolean) -> Unit,
     onExportGpx: () -> Unit,
     onExportCsv: () -> Unit,
     onDelete: () -> Unit,
 ) {
     val locale = LocalConfiguration.current.locales[0]
     var showDeleteDialog by remember { mutableStateOf(false) }
+    var showMapConsentDialog by remember { mutableStateOf(false) }
 
     Box(modifier = Modifier.fillMaxSize()) {
         Column(modifier = Modifier.fillMaxSize()) {
@@ -174,6 +177,7 @@ private fun TripDetailScreen(
                     trip = state.trip,
                     locale = locale,
                     onOpenPaywall = onOpenPaywall,
+                    onRequestEnableMapTiles = { showMapConsentDialog = true },
                     onExportGpx = onExportGpx,
                     onExportCsv = onExportCsv,
                     onDelete = { showDeleteDialog = true },
@@ -185,6 +189,29 @@ private fun TripDetailScreen(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .padding(16.dp),
+        )
+    }
+
+    if (showMapConsentDialog) {
+        AlertDialog(
+            onDismissRequest = { showMapConsentDialog = false },
+            title = { Text(stringResource(R.string.settings_map_confirm_title)) },
+            text = { Text(stringResource(R.string.settings_map_confirm_body)) },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showMapConsentDialog = false
+                        onSetMapTiles(true)
+                    },
+                ) {
+                    Text(stringResource(R.string.settings_map_confirm_action))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showMapConsentDialog = false }) {
+                    Text(stringResource(R.string.common_cancel))
+                }
+            },
         )
     }
 
@@ -239,6 +266,7 @@ private fun TripDetailContent(
     trip: TripRecord,
     locale: Locale,
     onOpenPaywall: () -> Unit,
+    onRequestEnableMapTiles: () -> Unit,
     onExportGpx: () -> Unit,
     onExportCsv: () -> Unit,
     onDelete: () -> Unit,
@@ -253,7 +281,11 @@ private fun TripDetailContent(
             HeaderCard(trip = trip, vehicleName = state.vehicleName, locale = locale, band = band)
         }
         item {
-            MapCard(trip = trip, allowMapTiles = state.allowMapTiles)
+            MapCard(
+                trip = trip,
+                allowMapTiles = state.allowMapTiles,
+                onRequestEnableTiles = onRequestEnableMapTiles,
+            )
         }
         item {
             StatsCard(trip = trip, locale = locale)
@@ -342,7 +374,11 @@ private fun HeaderCard(
 }
 
 @Composable
-private fun MapCard(trip: TripRecord, allowMapTiles: Boolean) {
+private fun MapCard(
+    trip: TripRecord,
+    allowMapTiles: Boolean,
+    onRequestEnableTiles: () -> Unit,
+) {
     SectionCard(title = stringResource(R.string.detail_map_title)) {
         if (trip.route.isEmpty()) {
             Box(
@@ -374,16 +410,47 @@ private fun MapCard(trip: TripRecord, allowMapTiles: Boolean) {
                 }
             }
         } else {
-            TripMap(
-                route = trip.route,
-                events = trip.events,
-                allowTileDownloads = allowMapTiles,
-                contentDescription = stringResource(R.string.detail_map_description),
+            Box(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(230.dp)
                     .clip(RoundedCornerShape(14.dp)),
-            )
+            ) {
+                TripMap(
+                    route = trip.route,
+                    events = trip.events,
+                    allowTileDownloads = allowMapTiles,
+                    contentDescription = stringResource(R.string.detail_map_description),
+                    modifier = Modifier.matchParentSize(),
+                )
+                if (!allowMapTiles) {
+                    Surface(
+                        modifier = Modifier
+                            .align(Alignment.BottomCenter)
+                            .fillMaxWidth(),
+                        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.94f),
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Text(
+                                text = stringResource(R.string.detail_tiles_off),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.weight(1f),
+                            )
+                            Spacer(Modifier.width(8.dp))
+                            TextButton(
+                                onClick = onRequestEnableTiles,
+                                modifier = Modifier.heightIn(min = 48.dp),
+                            ) {
+                                Text(stringResource(R.string.detail_map_enable))
+                            }
+                        }
+                    }
+                }
+            }
         }
         Spacer(Modifier.height(8.dp))
         Text(
@@ -391,13 +458,6 @@ private fun MapCard(trip: TripRecord, allowMapTiles: Boolean) {
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
-        if (!allowMapTiles && trip.route.isNotEmpty()) {
-            Text(
-                text = stringResource(R.string.detail_tiles_off),
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
     }
 }
 
