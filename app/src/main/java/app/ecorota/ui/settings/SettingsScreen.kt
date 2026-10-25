@@ -961,7 +961,8 @@ private fun UpdateSection(
         OutlinedButton(
             onClick = actions.checkUpdate,
             enabled = updateState !is UpdateState.Checking &&
-                updateState !is UpdateState.Downloading,
+                updateState !is UpdateState.Downloading &&
+                updateState !is UpdateState.Ready,
             modifier = Modifier
                 .fillMaxWidth()
                 .heightIn(min = 48.dp),
