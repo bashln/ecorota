@@ -1,5 +1,6 @@
 package app.ecorota.data
 
+import app.ecorota.core.analysis.LifetimeTripStats
 import app.ecorota.core.model.TripListItem
 import app.ecorota.core.model.TripRecord
 import kotlinx.coroutines.flow.Flow
@@ -12,6 +13,8 @@ interface TripRepository {
     fun observeTrips(limit: Int = 500): Flow<List<TripListItem>>
 
     fun observeTripsSince(sinceMs: Long): Flow<List<TripListItem>>
+
+    fun observeLifetimeStats(): Flow<LifetimeTripStats>
 
     suspend fun getTrip(id: String): TripRecord?
 

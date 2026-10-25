@@ -128,6 +128,18 @@
     <string name="home_premium_action">Ver detalhes</string>
     <string name="home_update_available">A atualização %1$s está disponível.</string>
     <string name="home_update_action">Ver atualização</string>
+    <string name="home_lifetime_title">Desde o início</string>
+    <string name="home_lifetime_distance">Distância</string>
+    <string name="home_lifetime_total_time">Tempo total</string>
+    <string name="home_lifetime_stopped_time">Tempo parado</string>
+    <string name="home_lifetime_trips">Viagens</string>
+    <string name="home_lifetime_top_speed">Velocidade máxima</string>
+    <string name="home_lifetime_average_trip">Média por viagem</string>
+    <string name="home_lifetime_events_title">Eventos detectados</string>
+    <string name="home_lifetime_records_title">Recordes</string>
+    <string name="home_lifetime_best_score">Melhor nota</string>
+    <string name="home_lifetime_longest_trip">Viagem mais longa</string>
+    <string name="home_lifetime_record_value">%1$s · %2$s</string>
 
     <!-- Driving tips -->
     <string name="tip_smooth_acceleration_title">Acelere com suavidade</string>
