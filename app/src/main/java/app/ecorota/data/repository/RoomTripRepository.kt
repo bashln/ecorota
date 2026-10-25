@@ -1,5 +1,6 @@
 package app.ecorota.data.repository
 
+import app.ecorota.core.analysis.LifetimeTripStats
 import app.ecorota.core.model.TripListItem
 import app.ecorota.core.model.TripRecord
 import app.ecorota.data.TripRepository
@@ -21,6 +22,10 @@ class RoomTripRepository(database: EcoRotaDatabase) : TripRepository {
     override fun observeTripsSince(sinceMs: Long): Flow<List<TripListItem>> =
         tripDao.observeSummariesSince(sinceMs)
             .map { rows -> rows.map { it.toTripListItem() } }
+
+    override fun observeLifetimeStats(): Flow<LifetimeTripStats> =
+        tripDao.observeLifetimeStats()
+            .map { row -> row.toLifetimeStats() }
 
     override suspend fun getTrip(id: String): TripRecord? =
         tripDao.getTripWithEvents(id)?.toRecord()

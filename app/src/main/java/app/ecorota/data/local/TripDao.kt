@@ -16,6 +16,9 @@ abstract class TripDao {
     @Query(SUMMARY_COLUMNS + " WHERE t.startedAtMs >= :sinceMs GROUP BY t.id ORDER BY t.startedAtMs DESC")
     abstract fun observeSummariesSince(sinceMs: Long): Flow<List<TripListProjection>>
 
+    @Query(LIFETIME_STATS)
+    abstract fun observeLifetimeStats(): Flow<LifetimeTripStatsProjection>
+
     @Transaction
     @Query("SELECT * FROM trips WHERE id = :id")
     abstract suspend fun getTripWithEvents(id: String): TripWithEvents?
@@ -74,6 +77,25 @@ abstract class TripDao {
                    COUNT(e.id) AS eventCount
             FROM trips t
             LEFT JOIN driving_events e ON e.tripId = t.id
+        """
+
+        const val LIFETIME_STATS = """
+            SELECT COUNT(*) AS tripCount,
+                   COALESCE(SUM(distanceMeters), 0.0) AS distanceMeters,
+                   COALESCE(SUM(endedAtMs - startedAtMs), 0) AS durationMs,
+                   COALESCE(SUM(idleDurationMs), 0) AS idleDurationMs,
+                   COALESCE(MAX(maxSpeedKmh), 0.0) AS maxSpeedKmh,
+                   COALESCE(AVG(score), 0.0) AS averageScore,
+                   COALESCE(SUM(accelEventCount), 0) AS accelerationEvents,
+                   COALESCE(SUM(brakeEventCount), 0) AS brakingEvents,
+                   COALESCE(SUM(cornerEventCount), 0) AS corneringEvents,
+                   COALESCE(SUM(speedEventCount), 0) AS overspeedEvents,
+                   COALESCE(SUM(idleEventCount), 0) AS idlingEvents,
+                   COALESCE((SELECT MAX(score) FROM trips), 0) AS bestScore,
+                   COALESCE((SELECT startedAtMs FROM trips ORDER BY score DESC, startedAtMs DESC LIMIT 1), 0) AS bestScoreAtMs,
+                   COALESCE((SELECT MAX(distanceMeters) FROM trips), 0.0) AS longestDistanceMeters,
+                   COALESCE((SELECT startedAtMs FROM trips ORDER BY distanceMeters DESC, startedAtMs DESC LIMIT 1), 0) AS longestTripAtMs
+            FROM trips
         """
     }
 }

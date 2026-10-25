@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import app.ecorota.core.analysis.DrivingTips
+import app.ecorota.core.analysis.LifetimeTripStats
 import app.ecorota.core.analysis.SelectedTip
 import app.ecorota.core.model.SpeedUnit
 import app.ecorota.core.model.TripRecord
@@ -27,6 +28,7 @@ data class HomeUiState(
     val loading: Boolean = true,
     val live: LiveTripState = LiveTripState(),
     val lastTrip: TripRecord? = null,
+    val lifetime: LifetimeTripStats? = null,
     val tips: List<SelectedTip> = emptyList(),
     val currency: String = VehicleProfile.DEFAULT_CURRENCY,
     val speedUnit: SpeedUnit = SpeedUnit.KILOMETERS_PER_HOUR,
@@ -54,23 +56,27 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
         }
     }
 
-    private val vehiclePremiumBusy = combine(
+    private val homeExtras = combine(
         container.vehicleRepository.observeDefaultVehicle(),
         container.entitlementRepository.entitlement,
         busy,
-    ) { vehicle, entitlement, isBusy -> VehiclePremiumBusy(vehicle, entitlement, isBusy) }
+        container.tripRepository.observeLifetimeStats(),
+    ) { vehicle, entitlement, isBusy, lifetime ->
+        HomeExtras(vehicle, entitlement, isBusy, lifetime)
+    }
 
     val state: StateFlow<HomeUiState> = combine(
         container.settingsRepository.settings,
         container.trackingController.state,
         container.trackingController.monitoring,
         lastTrip,
-        vehiclePremiumBusy,
+        homeExtras,
     ) { settings, live, monitoring, trip, extra ->
         HomeUiState(
             loading = false,
             live = live,
             lastTrip = trip,
+            lifetime = extra.lifetime,
             tips = trip?.let { DrivingTips.forTrip(it.breakdown) }.orEmpty(),
             currency = live.fuel?.currency
                 ?: extra.vehicle?.currency
@@ -87,10 +93,11 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
         initialValue = HomeUiState(),
     )
 
-    private data class VehiclePremiumBusy(
+    private data class HomeExtras(
         val vehicle: VehicleProfile?,
         val entitlement: Entitlement,
         val busy: Boolean,
+        val lifetime: LifetimeTripStats,
     )
 
     fun startRecording() {

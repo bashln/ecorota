@@ -39,10 +39,13 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import app.ecorota.R
+import app.ecorota.core.analysis.LifetimeTripStats
 import app.ecorota.core.analysis.SelectedTip
+import app.ecorota.core.model.SpeedUnit
 import app.ecorota.core.model.TripRecord
 import app.ecorota.di.AppContainer
 import app.ecorota.ui.components.EmptyState
+import app.ecorota.ui.components.KeyValueRow
 import app.ecorota.ui.components.LoadingState
 import app.ecorota.ui.components.NoticeBanner
 import app.ecorota.ui.components.ScoreBadge
@@ -337,6 +340,17 @@ private fun HomeScreen(
             }
         }
 
+        val lifetime = state.lifetime
+        if (lifetime != null && lifetime.hasTrips) {
+            item {
+                LifetimeCard(
+                    lifetime = lifetime,
+                    speedUnit = state.speedUnit,
+                    locale = locale,
+                )
+            }
+        }
+
         item {
             val trip = state.lastTrip
             if (trip == null) {
@@ -378,6 +392,78 @@ private fun HomeScreen(
             item {
                 PremiumCard(onOpenPaywall = onOpenPaywall)
             }
+        }
+    }
+}
+
+@Composable
+private fun LifetimeCard(
+    lifetime: LifetimeTripStats,
+    speedUnit: SpeedUnit,
+    locale: Locale,
+) {
+    SectionCard(title = stringResource(R.string.home_lifetime_title)) {
+        StatGrid(
+            items = listOf(
+                stringResource(R.string.home_lifetime_distance) to
+                    Formatters.distance(lifetime.distanceMeters, locale),
+                stringResource(R.string.home_lifetime_total_time) to
+                    Formatters.duration(lifetime.durationMs, locale),
+                stringResource(R.string.home_lifetime_stopped_time) to
+                    Formatters.duration(lifetime.idleDurationMs, locale),
+                stringResource(R.string.home_lifetime_trips) to
+                    Formatters.integer(lifetime.tripCount, locale),
+                stringResource(R.string.home_lifetime_top_speed) to
+                    Formatters.speed(lifetime.maxSpeedKmh, speedUnit, locale),
+                stringResource(R.string.home_lifetime_average_trip) to
+                    Formatters.duration(lifetime.averageTripDurationMs, locale),
+            ),
+        )
+        Spacer(Modifier.height(16.dp))
+        Text(
+            text = stringResource(R.string.home_lifetime_events_title),
+            style = MaterialTheme.typography.titleSmall,
+        )
+        Spacer(Modifier.height(8.dp))
+        StatGrid(
+            items = listOf(
+                stringResource(R.string.event_hard_acceleration) to
+                    Formatters.integer(lifetime.accelerationEvents, locale),
+                stringResource(R.string.event_hard_braking) to
+                    Formatters.integer(lifetime.brakingEvents, locale),
+                stringResource(R.string.event_sharp_cornering) to
+                    Formatters.integer(lifetime.corneringEvents, locale),
+                stringResource(R.string.event_overspeed) to
+                    Formatters.integer(lifetime.overspeedEvents, locale),
+                stringResource(R.string.event_idling) to
+                    Formatters.integer(lifetime.idlingEvents, locale),
+            ),
+        )
+        val bestScoreAtMs = lifetime.bestScoreAtMs
+        val bestScore = lifetime.bestScore
+        val longestTripAtMs = lifetime.longestTripAtMs
+        if (bestScoreAtMs != null && bestScore != null && longestTripAtMs != null) {
+            Spacer(Modifier.height(16.dp))
+            Text(
+                text = stringResource(R.string.home_lifetime_records_title),
+                style = MaterialTheme.typography.titleSmall,
+            )
+            KeyValueRow(
+                label = stringResource(R.string.home_lifetime_best_score),
+                value = stringResource(
+                    R.string.home_lifetime_record_value,
+                    Formatters.integer(bestScore, locale),
+                    DateFormats.dateTime(bestScoreAtMs, locale),
+                ),
+            )
+            KeyValueRow(
+                label = stringResource(R.string.home_lifetime_longest_trip),
+                value = stringResource(
+                    R.string.home_lifetime_record_value,
+                    Formatters.distance(lifetime.longestDistanceMeters, locale),
+                    DateFormats.dateTime(longestTripAtMs, locale),
+                ),
+            )
         }
     }
 }
