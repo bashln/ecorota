@@ -126,6 +126,8 @@
     <string name="home_premium_title">EcoRota Premium</string>
     <string name="home_premium_body">Tendências semanais, vários veículos, eventos detalhados e exportação CSV/GPX.</string>
     <string name="home_premium_action">Ver detalhes</string>
+    <string name="home_update_available">A atualização %1$s está disponível.</string>
+    <string name="home_update_action">Ver atualização</string>
 
     <!-- Driving tips -->
     <string name="tip_smooth_acceleration_title">Acelere com suavidade</string>
@@ -278,6 +280,29 @@
     <string name="settings_map_confirm_action">Permitir downloads</string>
     <string name="settings_appearance_title">Aparência</string>
     <string name="settings_speed_unit_title">Unidade de velocidade</string>
+    <string name="settings_updates_title">Atualizações</string>
+    <string name="settings_updates_body">A versão da comunidade pode consultar as releases do GitHub para achar um APK novo e assinado. A consulta é opcional e não envia nada além do pedido.</string>
+    <string name="settings_updates_current">Versão atual</string>
+    <string name="settings_updates_auto_title">Verificar automaticamente</string>
+    <string name="settings_updates_auto_body">Verifica uma vez ao abrir o app, sem baixar nada.</string>
+    <string name="settings_updates_check">Verificar atualizações</string>
+    <string name="settings_updates_checking">Verificando atualizações…</string>
+    <string name="settings_updates_up_to_date">Você está na versão mais recente.</string>
+    <string name="settings_updates_available">A versão %1$s está disponível.</string>
+    <string name="settings_updates_download">Baixar atualização</string>
+    <string name="settings_updates_downloading">Baixando e verificando…</string>
+    <string name="settings_updates_ready">Atualização baixada e verificada. Ela tem a mesma assinatura desta versão.</string>
+    <string name="settings_updates_install">Instalar atualização</string>
+    <string name="settings_updates_permission_missing">O Android precisa de permissão para instalar atualizações pelo EcoRota.</string>
+    <string name="settings_updates_allow_installs">Permitir instalações</string>
+    <string name="settings_updates_failed_network">Não foi possível acessar o GitHub. Verifique a conexão e tente de novo.</string>
+    <string name="settings_updates_failed_no_release">Nenhuma release foi encontrada.</string>
+    <string name="settings_updates_failed_bad_response">A release não contém um APK válido da versão da comunidade.</string>
+    <string name="settings_updates_failed_download">O download falhou. Tente de novo.</string>
+    <string name="settings_updates_failed_checksum">O arquivo baixado falhou na verificação de checksum e foi descartado.</string>
+    <string name="settings_updates_failed_signature">O APK baixado não está assinado pelo EcoRota e foi descartado.</string>
+    <string name="settings_updates_failed_install">Não foi possível abrir o instalador.</string>
+    <string name="settings_updates_retry">Tentar de novo</string>
     <string name="settings_theme_system">Sistema</string>
     <string name="settings_theme_light">Claro</string>
     <string name="settings_theme_dark">Escuro</string>

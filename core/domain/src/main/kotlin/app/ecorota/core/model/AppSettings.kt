@@ -26,6 +26,8 @@ data class AppSettings(
     val consumptionUnit: ConsumptionUnit = ConsumptionUnit.LITERS_PER_100_KM,
     val currency: String = "BRL",
     val allowMapTileDownloads: Boolean = false,
+    /** Libre build only: check GitHub Releases for a newer signed APK. */
+    val checkForUpdates: Boolean = false,
     val keepScreenOnDuringTrip: Boolean = true,
     /** 0 keeps trips forever; any other value is the retention window in days. */
     val dataRetentionDays: Int = 0,

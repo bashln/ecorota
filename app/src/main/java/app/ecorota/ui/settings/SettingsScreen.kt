@@ -50,6 +50,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import app.ecorota.BuildConfig
@@ -62,6 +64,8 @@ import app.ecorota.core.scoring.ScoringConfig
 import app.ecorota.data.PremiumSource
 import app.ecorota.di.AppContainer
 import app.ecorota.tracking.LiveTripState
+import app.ecorota.update.UpdateFailure
+import app.ecorota.update.UpdateState
 import app.ecorota.ui.components.KeyValueRow
 import app.ecorota.ui.components.LoadingState
 import app.ecorota.ui.components.NavigationRow
@@ -85,6 +89,7 @@ import kotlin.math.roundToInt
 data class SettingsActions(
     val setThemeMode: (ThemeMode) -> Unit,
     val setSpeedUnit: (SpeedUnit) -> Unit,
+    val setUpdateChecks: (Boolean) -> Unit,
     val setKeepScreenOn: (Boolean) -> Unit,
     val setMapTileDownloads: (Boolean) -> Unit,
     val setAutoDetection: (Boolean) -> Unit,
@@ -99,6 +104,10 @@ data class SettingsActions(
     val restorePurchase: () -> Unit,
     val tip: () -> Unit,
     val openSource: () -> Unit,
+    val checkUpdate: () -> Unit,
+    val downloadUpdate: () -> Unit,
+    val installUpdate: () -> Unit,
+    val allowInstallSources: () -> Unit,
 )
 
 @Composable
@@ -115,6 +124,14 @@ fun SettingsRoute(container: AppContainer, onOpenPaywall: () -> Unit) {
     val context = LocalContext.current
     val activity: Activity? = context.findActivity()
     val snackbarHostState = remember { SnackbarHostState() }
+    val updateState by container.updateController.state.collectAsStateWithLifecycle()
+    val updateSupported = container.updateController.supported
+    var canInstallUpdates by remember {
+        mutableStateOf(container.updateController.canInstall(context))
+    }
+    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
+        canInstallUpdates = container.updateController.canInstall(context)
+    }
 
     val messageTexts = mapOf(
         SettingsMessage.PURCHASE_SUCCESS to stringResource(R.string.settings_msg_purchase_success),
@@ -146,6 +163,7 @@ fun SettingsRoute(container: AppContainer, onOpenPaywall: () -> Unit) {
     val actions = SettingsActions(
         setThemeMode = viewModel::setThemeMode,
         setSpeedUnit = viewModel::setSpeedUnit,
+        setUpdateChecks = viewModel::setUpdateChecks,
         setKeepScreenOn = viewModel::setKeepScreenOn,
         setMapTileDownloads = viewModel::setMapTileDownloads,
         setAutoDetection = viewModel::setAutoDetectionEnabled,
@@ -162,6 +180,10 @@ fun SettingsRoute(container: AppContainer, onOpenPaywall: () -> Unit) {
         openSource = {
             context.openExternalUrl(context.getString(R.string.settings_source_url))
         },
+        checkUpdate = { container.updateController.check(manual = true) },
+        downloadUpdate = { container.updateController.download() },
+        installUpdate = { container.updateController.install(context) },
+        allowInstallSources = { container.updateController.openInstallPermission(context) },
     )
 
     Box(modifier = Modifier.fillMaxSize()) {
@@ -170,6 +192,9 @@ fun SettingsRoute(container: AppContainer, onOpenPaywall: () -> Unit) {
             live = live,
             permissions = permissions,
             actions = actions,
+            updateState = updateState,
+            updateSupported = updateSupported,
+            canInstallUpdates = canInstallUpdates,
             onRequestAutoDetection = requestAutoDetection,
             onOpenPaywall = onOpenPaywall,
         )
@@ -188,6 +213,9 @@ private fun SettingsScreen(
     live: LiveTripState,
     permissions: AppPermissionsState,
     actions: SettingsActions,
+    updateState: UpdateState,
+    updateSupported: Boolean,
+    canInstallUpdates: Boolean,
     onRequestAutoDetection: () -> Unit,
     onOpenPaywall: () -> Unit,
 ) {
@@ -258,6 +286,15 @@ private fun SettingsScreen(
                 onChange = actions.saveScoringConfig,
                 onReset = actions.resetScoringConfig,
                 locale = locale,
+            )
+        }
+        item {
+            UpdateSection(
+                supported = updateSupported,
+                autoCheck = state.settings.checkForUpdates,
+                updateState = updateState,
+                canInstall = canInstallUpdates,
+                actions = actions,
             )
         }
         item {
@@ -796,6 +833,156 @@ private fun oneDecimal(value: Double, locale: Locale): String =
     String.format(locale, "%.1f", value)
 
 private fun roundToOne(value: Double): Double = (value * 10).roundToInt() / 10.0
+
+@Composable
+private fun UpdateSection(
+    supported: Boolean,
+    autoCheck: Boolean,
+    updateState: UpdateState,
+    canInstall: Boolean,
+    actions: SettingsActions,
+) {
+    if (!supported) return
+
+    SectionCard(title = stringResource(R.string.settings_updates_title)) {
+        Text(
+            text = stringResource(R.string.settings_updates_body),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Spacer(Modifier.height(8.dp))
+        KeyValueRow(
+            label = stringResource(R.string.settings_updates_current),
+            value = BuildConfig.VERSION_NAME,
+        )
+        SwitchRow(
+            title = stringResource(R.string.settings_updates_auto_title),
+            description = stringResource(R.string.settings_updates_auto_body),
+            checked = autoCheck,
+            onCheckedChange = actions.setUpdateChecks,
+        )
+        Spacer(Modifier.height(8.dp))
+        when (val state = updateState) {
+            UpdateState.Idle -> Unit
+            UpdateState.Checking -> {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
+                    Spacer(Modifier.width(8.dp))
+                    Text(stringResource(R.string.settings_updates_checking))
+                }
+            }
+            UpdateState.UpToDate -> Text(
+                text = stringResource(R.string.settings_updates_up_to_date),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.primary,
+            )
+            is UpdateState.Available -> Column {
+                Text(
+                    text = stringResource(
+                        R.string.settings_updates_available,
+                        state.update.versionName,
+                    ),
+                    style = MaterialTheme.typography.titleSmall,
+                )
+                state.update.releaseNotes?.take(600)?.let { notes ->
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        text = notes,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                Spacer(Modifier.height(8.dp))
+                Button(
+                    onClick = actions.downloadUpdate,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(min = 48.dp),
+                ) {
+                    Text(stringResource(R.string.settings_updates_download))
+                }
+            }
+            is UpdateState.Downloading -> Column {
+                Text(stringResource(R.string.settings_updates_downloading))
+                Spacer(Modifier.height(6.dp))
+                LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+            }
+            is UpdateState.Ready -> Column {
+                Text(
+                    text = stringResource(R.string.settings_updates_ready),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.primary,
+                )
+                Spacer(Modifier.height(8.dp))
+                if (canInstall) {
+                    Button(
+                        onClick = actions.installUpdate,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(min = 48.dp),
+                    ) {
+                        Text(stringResource(R.string.settings_updates_install))
+                    }
+                } else {
+                    Text(
+                        text = stringResource(R.string.settings_updates_permission_missing),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    Button(
+                        onClick = actions.allowInstallSources,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(min = 48.dp),
+                    ) {
+                        Text(stringResource(R.string.settings_updates_allow_installs))
+                    }
+                }
+            }
+            is UpdateState.Failed -> Column {
+                Text(
+                    text = updateFailureText(state.reason),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.error,
+                )
+                Spacer(Modifier.height(8.dp))
+                Button(
+                    onClick = actions.checkUpdate,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(min = 48.dp),
+                ) {
+                    Text(stringResource(R.string.settings_updates_retry))
+                }
+            }
+        }
+        Spacer(Modifier.height(8.dp))
+        OutlinedButton(
+            onClick = actions.checkUpdate,
+            enabled = updateState !is UpdateState.Checking &&
+                updateState !is UpdateState.Downloading,
+            modifier = Modifier
+                .fillMaxWidth()
+                .heightIn(min = 48.dp),
+        ) {
+            Text(stringResource(R.string.settings_updates_check))
+        }
+    }
+}
+
+@Composable
+private fun updateFailureText(reason: UpdateFailure): String = stringResource(
+    when (reason) {
+        UpdateFailure.NETWORK -> R.string.settings_updates_failed_network
+        UpdateFailure.NO_RELEASE -> R.string.settings_updates_failed_no_release
+        UpdateFailure.BAD_RESPONSE -> R.string.settings_updates_failed_bad_response
+        UpdateFailure.DOWNLOAD -> R.string.settings_updates_failed_download
+        UpdateFailure.CHECKSUM -> R.string.settings_updates_failed_checksum
+        UpdateFailure.SIGNATURE -> R.string.settings_updates_failed_signature
+        UpdateFailure.INSTALL -> R.string.settings_updates_failed_install
+    },
+)
 
 @Composable
 private fun PremiumSection(

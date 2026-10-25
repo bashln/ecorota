@@ -127,6 +127,8 @@
     <string name="home_premium_title">EcoRota Premium</string>
     <string name="home_premium_body">Weekly trends, multiple vehicles, detailed events and CSV/GPX export.</string>
     <string name="home_premium_action">See details</string>
+    <string name="home_update_available">Update %1$s is available.</string>
+    <string name="home_update_action">See update</string>
 
     <!-- Driving tips -->
     <string name="tip_smooth_acceleration_title">Accelerate gently</string>
@@ -277,6 +279,29 @@
     <string name="settings_map_confirm_action">Allow downloads</string>
     <string name="settings_appearance_title">Appearance</string>
     <string name="settings_speed_unit_title">Speed unit</string>
+    <string name="settings_updates_title">Updates</string>
+    <string name="settings_updates_body">The community build can check GitHub Releases for a newer signed APK. The check is optional and sends nothing except the request.</string>
+    <string name="settings_updates_current">Current version</string>
+    <string name="settings_updates_auto_title">Check automatically</string>
+    <string name="settings_updates_auto_body">Checks once when the app starts, without downloading anything.</string>
+    <string name="settings_updates_check">Check for updates</string>
+    <string name="settings_updates_checking">Checking for updates…</string>
+    <string name="settings_updates_up_to_date">You are on the latest version.</string>
+    <string name="settings_updates_available">Version %1$s is available.</string>
+    <string name="settings_updates_download">Download update</string>
+    <string name="settings_updates_downloading">Downloading and verifying…</string>
+    <string name="settings_updates_ready">Update downloaded and verified. It is signed with the same key as this build.</string>
+    <string name="settings_updates_install">Install update</string>
+    <string name="settings_updates_permission_missing">Android needs permission to install updates from EcoRota.</string>
+    <string name="settings_updates_allow_installs">Allow installs</string>
+    <string name="settings_updates_failed_network">Could not reach GitHub. Check the connection and try again.</string>
+    <string name="settings_updates_failed_no_release">No release was found.</string>
+    <string name="settings_updates_failed_bad_response">The release does not contain a valid community APK.</string>
+    <string name="settings_updates_failed_download">The download failed. Try again.</string>
+    <string name="settings_updates_failed_checksum">The downloaded file failed the checksum check and was discarded.</string>
+    <string name="settings_updates_failed_signature">The downloaded APK is not signed by EcoRota and was discarded.</string>
+    <string name="settings_updates_failed_install">Could not open the installer.</string>
+    <string name="settings_updates_retry">Try again</string>
     <string name="settings_theme_system">System</string>
     <string name="settings_theme_light">Light</string>
     <string name="settings_theme_dark">Dark</string>

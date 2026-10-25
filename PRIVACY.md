@@ -1,6 +1,6 @@
 # EcoRota privacy statement
 
-Effective date: 2026-10-24
+Effective date: 2026-10-25
 
 EcoRota is designed so that your driving data never leaves your device unless you explicitly export it.
 
@@ -21,10 +21,11 @@ The app does not create an account. It does not collect a name, email address, p
 
 Nothing by default.
 
-Two features can send data, and both require your action:
+Three features can send data, and all require your action:
 
 1. **Map tiles.** If you enable "Allow map tile downloads" in Settings, the app requests map tiles from OpenStreetMap servers. Those requests include the tile coordinates and standard network metadata such as your IP address. OpenStreetMap's own privacy policy applies to those requests. If you leave the setting off, the app never contacts a tile server, and maps show cached tiles only.
-2. **Export.** If you export trips as CSV or GPX, the file is written to the location you choose through Android's document picker. Where it goes after that is your decision. Export is a premium feature and is never automatic.
+2. **Update check (community build only).** If you enable "Check automatically" in Settings, or tap "Check for updates", the app requests the latest release metadata from the public GitHub Releases API. That request includes standard network metadata such as your IP address and a User-Agent with the app version; it contains no trip data, account, or device identifier. The APK is downloaded only after you tap "Download update". The Play build does not check for updates and has no install-packages permission.
+3. **Export.** If you export trips as CSV or GPX, the file is written to the location you choose through Android's document picker. Where it goes after that is your decision. Export is a premium feature and is never automatic.
 
 There is no analytics SDK, crash reporting SDK, advertising SDK, or backend service in this project.
 
@@ -40,7 +41,8 @@ The Play build checks for an existing purchase when it starts, when you open the
 - **Background location.** Requested only when you enable auto-detection. It lets the app notice a drive while the app is not open.
 - **Foreground service (location).** Keeps recording reliable and shows the ongoing notification.
 - **Notifications.** Shows the recording notification and nothing promotional.
-- **Internet and network state.** Used only for the optional map tiles described above.
+- **Internet and network state.** Used only for the optional map tiles and the optional community update check described above.
+- **Install unknown apps (community build only).** Used only to open the Android installer for an update you explicitly downloaded. The Play build does not request it.
 
 ## Retention and deletion
 
