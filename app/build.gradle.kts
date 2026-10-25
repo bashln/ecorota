@@ -51,6 +51,7 @@ android {
         versionCode = appVersionCode
         versionName = appVersionName
         vectorDrawables.useSupportLibrary = true
+        manifestPlaceholders["appLabel"] = "EcoRota"
     }
 
     flavorDimensions += "distribution"
@@ -65,6 +66,7 @@ android {
             dimension = "distribution"
             applicationIdSuffix = ".libre"
             versionNameSuffix = "-libre"
+            manifestPlaceholders["appLabel"] = "EcoRota Libre"
             buildConfigField("boolean", "BILLING_ENABLED", "false")
         }
     }
@@ -84,6 +86,7 @@ android {
         debug {
             applicationIdSuffix = ".debug"
             versionNameSuffix = "-debug"
+            manifestPlaceholders["appLabel"] = "EcoRota Debug"
         }
         release {
             signingConfig = signingConfigs.findByName("release")
