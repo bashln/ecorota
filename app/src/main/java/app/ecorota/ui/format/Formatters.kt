@@ -2,6 +2,7 @@ package app.ecorota.ui.format
 
 import app.ecorota.core.model.ConsumptionUnit
 import app.ecorota.core.model.FuelUnits
+import app.ecorota.core.model.SpeedUnit
 import java.text.NumberFormat
 import java.util.Currency
 import java.util.Locale
@@ -36,8 +37,23 @@ object Formatters {
         }
     }
 
-    fun speed(kmh: Double, locale: Locale): String =
-        String.format(locale, "%.0f km/h", kmh.coerceAtLeast(0.0))
+    fun speed(kmh: Double, unit: SpeedUnit, locale: Locale): String =
+        String.format(
+            locale,
+            "%.0f %s",
+            speedValue(kmh, unit),
+            speedUnitLabel(unit),
+        )
+
+    fun speedValue(kmh: Double, unit: SpeedUnit): Double = when (unit) {
+        SpeedUnit.KILOMETERS_PER_HOUR -> kmh.coerceAtLeast(0.0)
+        SpeedUnit.MILES_PER_HOUR -> (kmh.coerceAtLeast(0.0)) * 0.621371
+    }
+
+    fun speedUnitLabel(unit: SpeedUnit): String = when (unit) {
+        SpeedUnit.KILOMETERS_PER_HOUR -> "km/h"
+        SpeedUnit.MILES_PER_HOUR -> "mph"
+    }
 
     /** Two decimals keep small avoidable amounts visible. */
     fun liters(value: Double, locale: Locale): String {

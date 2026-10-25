@@ -7,6 +7,7 @@ import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import app.ecorota.core.analysis.DrivingTips
 import app.ecorota.core.analysis.SelectedTip
+import app.ecorota.core.model.SpeedUnit
 import app.ecorota.core.model.TripRecord
 import app.ecorota.core.model.VehicleProfile
 import app.ecorota.data.Entitlement
@@ -28,6 +29,7 @@ data class HomeUiState(
     val lastTrip: TripRecord? = null,
     val tips: List<SelectedTip> = emptyList(),
     val currency: String = VehicleProfile.DEFAULT_CURRENCY,
+    val speedUnit: SpeedUnit = SpeedUnit.KILOMETERS_PER_HOUR,
     val isPremium: Boolean = false,
     val autoDetectionEnabled: Boolean = false,
     val monitoring: Boolean = false,
@@ -73,6 +75,7 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
             currency = live.fuel?.currency
                 ?: extra.vehicle?.currency
                 ?: settings.currency,
+            speedUnit = settings.speedUnit,
             isPremium = extra.entitlement.isPremium,
             autoDetectionEnabled = settings.autoDetectionEnabled,
             monitoring = monitoring,

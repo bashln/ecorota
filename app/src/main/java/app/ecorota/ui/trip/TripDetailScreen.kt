@@ -67,6 +67,7 @@ import app.ecorota.core.model.DrivingEventType
 import app.ecorota.core.model.EventSeverity
 import app.ecorota.core.model.ScoreCategory
 import app.ecorota.core.model.ScoreComponent
+import app.ecorota.core.model.SpeedUnit
 import app.ecorota.core.model.TripRecord
 import app.ecorota.di.AppContainer
 import app.ecorota.ui.components.EmptyState
@@ -132,6 +133,7 @@ fun TripDetailRoute(
         snackbarHostState = snackbarHostState,
         onBack = onBack,
         onOpenPaywall = onOpenPaywall,
+        onSetMapTiles = viewModel::setMapTileDownloads,
         onExportGpx = {
             state.trip?.let { trip ->
                 gpxLauncher.launch(container.tripExporter.gpxFileName(trip))
@@ -152,12 +154,14 @@ private fun TripDetailScreen(
     snackbarHostState: SnackbarHostState,
     onBack: () -> Unit,
     onOpenPaywall: () -> Unit,
+    onSetMapTiles: (Boolean) -> Unit,
     onExportGpx: () -> Unit,
     onExportCsv: () -> Unit,
     onDelete: () -> Unit,
 ) {
     val locale = LocalConfiguration.current.locales[0]
     var showDeleteDialog by remember { mutableStateOf(false) }
+    var showMapConsentDialog by remember { mutableStateOf(false) }
 
     Box(modifier = Modifier.fillMaxSize()) {
         Column(modifier = Modifier.fillMaxSize()) {
@@ -173,7 +177,9 @@ private fun TripDetailScreen(
                     state = state,
                     trip = state.trip,
                     locale = locale,
+                    speedUnit = state.speedUnit,
                     onOpenPaywall = onOpenPaywall,
+                    onRequestEnableMapTiles = { showMapConsentDialog = true },
                     onExportGpx = onExportGpx,
                     onExportCsv = onExportCsv,
                     onDelete = { showDeleteDialog = true },
@@ -185,6 +191,29 @@ private fun TripDetailScreen(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .padding(16.dp),
+        )
+    }
+
+    if (showMapConsentDialog) {
+        AlertDialog(
+            onDismissRequest = { showMapConsentDialog = false },
+            title = { Text(stringResource(R.string.settings_map_confirm_title)) },
+            text = { Text(stringResource(R.string.settings_map_confirm_body)) },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showMapConsentDialog = false
+                        onSetMapTiles(true)
+                    },
+                ) {
+                    Text(stringResource(R.string.settings_map_confirm_action))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showMapConsentDialog = false }) {
+                    Text(stringResource(R.string.common_cancel))
+                }
+            },
         )
     }
 
@@ -238,7 +267,9 @@ private fun TripDetailContent(
     state: TripDetailUiState,
     trip: TripRecord,
     locale: Locale,
+    speedUnit: SpeedUnit,
     onOpenPaywall: () -> Unit,
+    onRequestEnableMapTiles: () -> Unit,
     onExportGpx: () -> Unit,
     onExportCsv: () -> Unit,
     onDelete: () -> Unit,
@@ -253,10 +284,14 @@ private fun TripDetailContent(
             HeaderCard(trip = trip, vehicleName = state.vehicleName, locale = locale, band = band)
         }
         item {
-            MapCard(trip = trip, allowMapTiles = state.allowMapTiles)
+            MapCard(
+                trip = trip,
+                allowMapTiles = state.allowMapTiles,
+                onRequestEnableTiles = onRequestEnableMapTiles,
+            )
         }
         item {
-            StatsCard(trip = trip, locale = locale)
+            StatsCard(trip = trip, locale = locale, speedUnit = speedUnit)
         }
         item {
             BreakdownCard(trip = trip, locale = locale)
@@ -269,6 +304,7 @@ private fun TripDetailContent(
                 trip = trip,
                 isPremium = state.isPremium,
                 locale = locale,
+                speedUnit = speedUnit,
                 onOpenPaywall = onOpenPaywall,
             )
         }
@@ -342,7 +378,11 @@ private fun HeaderCard(
 }
 
 @Composable
-private fun MapCard(trip: TripRecord, allowMapTiles: Boolean) {
+private fun MapCard(
+    trip: TripRecord,
+    allowMapTiles: Boolean,
+    onRequestEnableTiles: () -> Unit,
+) {
     SectionCard(title = stringResource(R.string.detail_map_title)) {
         if (trip.route.isEmpty()) {
             Box(
@@ -374,16 +414,47 @@ private fun MapCard(trip: TripRecord, allowMapTiles: Boolean) {
                 }
             }
         } else {
-            TripMap(
-                route = trip.route,
-                events = trip.events,
-                allowTileDownloads = allowMapTiles,
-                contentDescription = stringResource(R.string.detail_map_description),
+            Box(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(230.dp)
                     .clip(RoundedCornerShape(14.dp)),
-            )
+            ) {
+                TripMap(
+                    route = trip.route,
+                    events = trip.events,
+                    allowTileDownloads = allowMapTiles,
+                    contentDescription = stringResource(R.string.detail_map_description),
+                    modifier = Modifier.matchParentSize(),
+                )
+                if (!allowMapTiles) {
+                    Surface(
+                        modifier = Modifier
+                            .align(Alignment.BottomCenter)
+                            .fillMaxWidth(),
+                        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.94f),
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Text(
+                                text = stringResource(R.string.detail_tiles_off),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.weight(1f),
+                            )
+                            Spacer(Modifier.width(8.dp))
+                            TextButton(
+                                onClick = onRequestEnableTiles,
+                                modifier = Modifier.heightIn(min = 48.dp),
+                            ) {
+                                Text(stringResource(R.string.detail_map_enable))
+                            }
+                        }
+                    }
+                }
+            }
         }
         Spacer(Modifier.height(8.dp))
         Text(
@@ -391,18 +462,11 @@ private fun MapCard(trip: TripRecord, allowMapTiles: Boolean) {
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
-        if (!allowMapTiles && trip.route.isNotEmpty()) {
-            Text(
-                text = stringResource(R.string.detail_tiles_off),
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
     }
 }
 
 @Composable
-private fun StatsCard(trip: TripRecord, locale: Locale) {
+private fun StatsCard(trip: TripRecord, locale: Locale, speedUnit: SpeedUnit) {
     SectionCard(title = stringResource(R.string.detail_stats_title)) {
         StatGrid(
             items = listOf(
@@ -413,9 +477,9 @@ private fun StatsCard(trip: TripRecord, locale: Locale) {
                 stringResource(R.string.detail_stat_moving_time) to
                     Formatters.duration(trip.movingDurationMs, locale),
                 stringResource(R.string.detail_stat_average_speed) to
-                    Formatters.speed(trip.averageSpeedKmh, locale),
+                    Formatters.speed(trip.averageSpeedKmh, speedUnit, locale),
                 stringResource(R.string.detail_stat_max_speed) to
-                    Formatters.speed(trip.maxSpeedKmh, locale),
+                    Formatters.speed(trip.maxSpeedKmh, speedUnit, locale),
                 stringResource(R.string.detail_stat_fuel) to
                     Formatters.liters(trip.fuel.estimatedLiters, locale),
                 stringResource(R.string.detail_stat_avoidable_fuel) to
@@ -623,6 +687,7 @@ private fun EventsCard(
     trip: TripRecord,
     isPremium: Boolean,
     locale: Locale,
+    speedUnit: SpeedUnit,
     onOpenPaywall: () -> Unit,
 ) {
     val events = trip.events.sortedBy { it.startedAtMs }
@@ -636,7 +701,12 @@ private fun EventsCard(
         } else {
             events.forEachIndexed { index, event ->
                 if (index > 0) Spacer(Modifier.height(12.dp))
-                EventRow(event = event, isPremium = isPremium, locale = locale)
+                EventRow(
+                    event = event,
+                    isPremium = isPremium,
+                    locale = locale,
+                    speedUnit = speedUnit,
+                )
             }
             if (!isPremium) {
                 Spacer(Modifier.height(12.dp))
@@ -672,7 +742,12 @@ private fun EventsCard(
 }
 
 @Composable
-private fun EventRow(event: DrivingEvent, isPremium: Boolean, locale: Locale) {
+private fun EventRow(
+    event: DrivingEvent,
+    isPremium: Boolean,
+    locale: Locale,
+    speedUnit: SpeedUnit,
+) {
     Row(verticalAlignment = Alignment.Top) {
         Box(
             modifier = Modifier
@@ -704,7 +779,7 @@ private fun EventRow(event: DrivingEvent, isPremium: Boolean, locale: Locale) {
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             Text(
-                text = eventValue(event, locale),
+                text = eventValue(event, locale, speedUnit),
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -731,7 +806,11 @@ private fun EventRow(event: DrivingEvent, isPremium: Boolean, locale: Locale) {
 }
 
 @Composable
-private fun eventValue(event: DrivingEvent, locale: Locale): String = when (event.type) {
+private fun eventValue(
+    event: DrivingEvent,
+    locale: Locale,
+    speedUnit: SpeedUnit,
+): String = when (event.type) {
     DrivingEventType.HARD_ACCELERATION,
     DrivingEventType.HARD_BRAKING,
     DrivingEventType.SHARP_CORNERING,
@@ -741,7 +820,7 @@ private fun eventValue(event: DrivingEvent, locale: Locale): String = when (even
     )
     DrivingEventType.OVERSPEED -> stringResource(
         R.string.detail_event_peak_speed,
-        Formatters.speed(event.peakValue, locale),
+        Formatters.speed(event.peakValue, speedUnit, locale),
     )
     DrivingEventType.IDLING -> stringResource(
         R.string.detail_event_idle_duration,

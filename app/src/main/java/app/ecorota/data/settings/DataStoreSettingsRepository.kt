@@ -12,6 +12,7 @@ import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import app.ecorota.core.model.AppSettings
 import app.ecorota.core.model.ConsumptionUnit
+import app.ecorota.core.model.SpeedUnit
 import app.ecorota.core.model.ThemeMode
 import app.ecorota.core.scoring.ScoringConfigCodec
 import app.ecorota.data.SettingsRepository
@@ -52,6 +53,7 @@ private object SettingsKeys {
     val OnboardingCompleted = booleanPreferencesKey("onboarding_completed")
     val AutoDetectionEnabled = booleanPreferencesKey("auto_detection_enabled")
     val ThemeMode = stringPreferencesKey("theme_mode")
+    val SpeedUnit = stringPreferencesKey("speed_unit")
     val ConsumptionUnit = stringPreferencesKey("consumption_unit")
     val Currency = stringPreferencesKey("currency")
     val AllowMapTileDownloads = booleanPreferencesKey("allow_map_tile_downloads")
@@ -71,6 +73,7 @@ private fun Preferences.toAppSettings(): AppSettings {
         autoDetectionEnabled = this[SettingsKeys.AutoDetectionEnabled]
             ?: defaults.autoDetectionEnabled,
         themeMode = enumOrNull<ThemeMode>(this[SettingsKeys.ThemeMode]) ?: defaults.themeMode,
+        speedUnit = enumOrNull<SpeedUnit>(this[SettingsKeys.SpeedUnit]) ?: defaults.speedUnit,
         consumptionUnit = enumOrNull<ConsumptionUnit>(this[SettingsKeys.ConsumptionUnit])
             ?: defaults.consumptionUnit,
         currency = this[SettingsKeys.Currency] ?: defaults.currency,
@@ -87,6 +90,7 @@ private fun MutablePreferences.writeSettings(settings: AppSettings) {
     this[SettingsKeys.OnboardingCompleted] = settings.onboardingCompleted
     this[SettingsKeys.AutoDetectionEnabled] = settings.autoDetectionEnabled
     this[SettingsKeys.ThemeMode] = settings.themeMode.name
+    this[SettingsKeys.SpeedUnit] = settings.speedUnit.name
     this[SettingsKeys.ConsumptionUnit] = settings.consumptionUnit.name
     this[SettingsKeys.Currency] = settings.currency
     this[SettingsKeys.AllowMapTileDownloads] = settings.allowMapTileDownloads

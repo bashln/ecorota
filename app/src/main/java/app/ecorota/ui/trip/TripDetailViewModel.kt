@@ -7,6 +7,7 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
+import app.ecorota.core.model.SpeedUnit
 import app.ecorota.core.model.TripRecord
 import app.ecorota.data.PremiumFeature
 import app.ecorota.di.AppContainer
@@ -38,6 +39,7 @@ data class TripDetailUiState(
     val vehicleName: String? = null,
     val isPremium: Boolean = false,
     val canExport: Boolean = false,
+    val speedUnit: SpeedUnit = SpeedUnit.KILOMETERS_PER_HOUR,
     val allowMapTiles: Boolean = false,
     val working: Boolean = false,
 )
@@ -78,6 +80,7 @@ class TripDetailViewModel(
             trip = trip,
             isPremium = entitlement.isPremium,
             canExport = entitlement.canUse(PremiumFeature.DATA_EXPORT),
+            speedUnit = settings.speedUnit,
             allowMapTiles = settings.allowMapTileDownloads,
             working = status.working,
         )
@@ -99,6 +102,12 @@ class TripDetailViewModel(
         started = SharingStarted.WhileSubscribed(5_000),
         initialValue = TripDetailUiState(),
     )
+
+    fun setMapTileDownloads(enabled: Boolean) {
+        viewModelScope.launch {
+            container.settingsRepository.update { it.copy(allowMapTileDownloads = enabled) }
+        }
+    }
 
     fun exportGpx(resolver: ContentResolver, uri: Uri) {
         val record = trip.value ?: return

@@ -85,7 +85,16 @@ fun TripMap(
             }
         },
         update = { mapView ->
+            val enablingTiles = allowTileDownloads &&
+                holder.lastAllowTileDownloads == false
             mapView.setUseDataConnection(allowTileDownloads)
+            if (enablingTiles) {
+                // Empty tiles can stay in the in-memory cache after consent is
+                // granted; drop them so the provider asks the network again.
+                mapView.tileProvider.clearTileCache()
+            }
+            holder.lastAllowTileDownloads = allowTileDownloads
+            mapView.invalidate()
             mapView.overlays.clear()
             if (routePoints.isNotEmpty()) {
                 val polyline = Polyline(mapView).apply {
@@ -145,4 +154,5 @@ private fun focusRoute(mapView: MapView, points: List<GeoPoint>) {
 
 private class MapViewHolder {
     var mapView: MapView? = null
+    var lastAllowTileDownloads: Boolean? = null
 }

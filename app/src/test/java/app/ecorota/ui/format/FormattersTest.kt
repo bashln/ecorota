@@ -1,6 +1,7 @@
 package app.ecorota.ui.format
 
 import app.ecorota.core.model.ConsumptionUnit
+import app.ecorota.core.model.SpeedUnit
 import java.util.Locale
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -35,10 +36,12 @@ class FormattersTest {
     }
 
     @Test
-    fun speedHasNoDecimals() {
-        assertEquals("88 km/h", Formatters.speed(87.6, en))
-        assertEquals("88 km/h", Formatters.speed(87.6, pt))
-        assertEquals("0 km/h", Formatters.speed(-3.0, en))
+    fun speedHasNoDecimalsAndConvertsUnits() {
+        assertEquals("88 km/h", Formatters.speed(87.6, SpeedUnit.KILOMETERS_PER_HOUR, en))
+        assertEquals("88 km/h", Formatters.speed(87.6, SpeedUnit.KILOMETERS_PER_HOUR, pt))
+        assertEquals("54 mph", Formatters.speed(87.6, SpeedUnit.MILES_PER_HOUR, en))
+        assertEquals("54 mph", Formatters.speed(87.6, SpeedUnit.MILES_PER_HOUR, pt))
+        assertEquals("0 km/h", Formatters.speed(-3.0, SpeedUnit.KILOMETERS_PER_HOUR, en))
     }
 
     @Test

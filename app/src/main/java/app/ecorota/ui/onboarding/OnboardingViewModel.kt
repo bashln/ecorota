@@ -8,6 +8,7 @@ import androidx.lifecycle.viewmodel.viewModelFactory
 import app.ecorota.core.model.AppSettings
 import app.ecorota.core.model.ConsumptionUnit
 import app.ecorota.core.model.FuelUnits
+import app.ecorota.core.model.SpeedUnit
 import app.ecorota.core.model.VehicleProfile
 import app.ecorota.di.AppContainer
 import app.ecorota.ui.format.Formatters
@@ -32,6 +33,7 @@ data class OnboardingUiState(
     val priceInput: String = "",
     val currency: String = VehicleProfile.DEFAULT_CURRENCY,
     val unit: ConsumptionUnit = ConsumptionUnit.LITERS_PER_100_KM,
+    val speedUnit: SpeedUnit = SpeedUnit.KILOMETERS_PER_HOUR,
     val saving: Boolean = false,
     val error: OnboardingError? = null,
 )
@@ -59,6 +61,7 @@ class OnboardingViewModel(private val container: AppContainer) : ViewModel() {
                 priceInput = String.format(locale, "%.2f", vehicle.fuelPricePerLiter),
                 currency = if (vehicle.currency.length == 3) vehicle.currency else settings.currency,
                 unit = settings.consumptionUnit,
+                speedUnit = settings.speedUnit,
             )
         }
     }
@@ -93,6 +96,10 @@ class OnboardingViewModel(private val container: AppContainer) : ViewModel() {
                 )
             }
         }
+    }
+
+    fun setSpeedUnit(unit: SpeedUnit) {
+        mutableState.update { it.copy(speedUnit = unit) }
     }
 
     fun setCurrency(value: String) {
@@ -148,6 +155,7 @@ class OnboardingViewModel(private val container: AppContainer) : ViewModel() {
                 container.settingsRepository.update { settings ->
                     settings.copy(
                         onboardingCompleted = true,
+                        speedUnit = current.speedUnit,
                         consumptionUnit = current.unit,
                         currency = current.currency,
                     )

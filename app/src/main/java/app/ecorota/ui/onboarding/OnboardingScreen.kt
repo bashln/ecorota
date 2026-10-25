@@ -22,6 +22,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
@@ -29,9 +30,15 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Block
 import androidx.compose.material.icons.filled.CloudOff
 import androidx.compose.material.icons.filled.Eco
+import androidx.compose.material.icons.filled.Gavel
+import androidx.compose.material.icons.filled.LocalParking
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.PersonOff
+import androidx.compose.material.icons.filled.PhoneAndroid
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Button
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
@@ -43,13 +50,16 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.KeyboardCapitalization
@@ -62,17 +72,21 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import app.ecorota.R
 import app.ecorota.core.model.AppSettings
 import app.ecorota.core.model.ConsumptionUnit
+import app.ecorota.core.model.SpeedUnit
 import app.ecorota.di.AppContainer
+import app.ecorota.ui.components.SpeedGauge
 import app.ecorota.ui.components.SwitchRow
 import app.ecorota.ui.permissions.AppPermissionsState
 import app.ecorota.ui.permissions.rememberAppPermissions
 import app.ecorota.ui.permissions.rememberAutoDetectionOptIn
 import app.ecorota.ui.theme.extraColors
 
-private const val PAGE_PRIVACY = 0
-private const val PAGE_PERMISSIONS = 1
-private const val PAGE_VEHICLE = 2
-private const val PAGE_COUNT = 3
+private const val PAGE_INTRO = 0
+private const val PAGE_PRIVACY = 1
+private const val PAGE_PERMISSIONS = 2
+private const val PAGE_SAFETY = 3
+private const val PAGE_VEHICLE = 4
+private const val PAGE_COUNT = 5
 
 @Composable
 fun OnboardingRoute(container: AppContainer) {
@@ -95,6 +109,7 @@ fun OnboardingRoute(container: AppContainer) {
         onConsumptionChange = viewModel::setConsumption,
         onPriceChange = viewModel::setPrice,
         onUnitChange = viewModel::setUnit,
+        onSpeedUnitChange = viewModel::setSpeedUnit,
         onCurrencyChange = viewModel::setCurrency,
         onAutoDetectionChange = { enabled ->
             if (enabled) requestAutoDetection() else viewModel.setAutoDetectionEnabled(false)
@@ -112,11 +127,13 @@ private fun OnboardingScreen(
     onConsumptionChange: (String) -> Unit,
     onPriceChange: (String) -> Unit,
     onUnitChange: (ConsumptionUnit) -> Unit,
+    onSpeedUnitChange: (SpeedUnit) -> Unit,
     onCurrencyChange: (String) -> Unit,
     onAutoDetectionChange: (Boolean) -> Unit,
     onComplete: () -> Unit,
 ) {
-    var page by rememberSaveable { mutableIntStateOf(PAGE_PRIVACY) }
+    var page by rememberSaveable { mutableIntStateOf(PAGE_INTRO) }
+    var safetyAccepted by rememberSaveable { mutableStateOf(false) }
 
     Surface(
         modifier = Modifier.fillMaxSize(),
@@ -158,11 +175,19 @@ private fun OnboardingScreen(
                 modifier = Modifier.weight(1f),
             ) { target ->
                 when (target) {
+                    PAGE_INTRO -> IntroPage(
+                        speedUnit = state.speedUnit,
+                        onSpeedUnitChange = onSpeedUnitChange,
+                    )
                     PAGE_PRIVACY -> PrivacyPage()
                     PAGE_PERMISSIONS -> PermissionsPage(
                         permissions = permissions,
                         autoDetectionEnabled = autoDetectionEnabled,
                         onAutoDetectionChange = onAutoDetectionChange,
+                    )
+                    PAGE_SAFETY -> SafetyPage(
+                        accepted = safetyAccepted,
+                        onAcceptedChange = { safetyAccepted = it },
                     )
                     else -> VehiclePage(
                         state = state,
@@ -194,7 +219,8 @@ private fun OnboardingScreen(
                     onClick = {
                         if (page == PAGE_VEHICLE) onComplete() else page += 1
                     },
-                    enabled = !state.saving && !state.loading,
+                    enabled = !state.saving && !state.loading &&
+                        (page != PAGE_SAFETY || safetyAccepted),
                     modifier = Modifier.heightIn(min = 48.dp),
                 ) {
                     if (state.saving) {
@@ -206,10 +232,10 @@ private fun OnboardingScreen(
                         Spacer(Modifier.width(8.dp))
                     }
                     Text(
-                        text = if (page == PAGE_VEHICLE) {
-                            stringResource(R.string.onboarding_finish)
-                        } else {
-                            stringResource(R.string.onboarding_continue)
+                        text = when (page) {
+                            PAGE_VEHICLE -> stringResource(R.string.onboarding_finish)
+                            PAGE_SAFETY -> stringResource(R.string.onboarding_safety_accept)
+                            else -> stringResource(R.string.onboarding_continue)
                         },
                     )
                 }
@@ -239,6 +265,173 @@ private fun StepIndicator(current: Int, total: Int) {
                     ),
             )
         }
+    }
+}
+
+@Composable
+private fun IntroPage(
+    speedUnit: SpeedUnit,
+    onSpeedUnitChange: (SpeedUnit) -> Unit,
+) {
+    val locale = LocalConfiguration.current.locales[0]
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(top = 16.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        SpeedGauge(
+            speedKmh = 100.0,
+            speedUnit = speedUnit,
+            locale = locale,
+            contentDescription = stringResource(R.string.onboarding_intro_gauge_description),
+        )
+        Text(
+            text = stringResource(R.string.onboarding_intro_gauge_caption),
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Spacer(Modifier.height(24.dp))
+        Text(
+            text = stringResource(R.string.onboarding_intro_title),
+            style = MaterialTheme.typography.headlineMedium,
+            textAlign = TextAlign.Center,
+        )
+        Spacer(Modifier.height(12.dp))
+        Text(
+            text = stringResource(R.string.onboarding_intro_body),
+            style = MaterialTheme.typography.bodyLarge,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            textAlign = TextAlign.Center,
+        )
+        Spacer(Modifier.height(24.dp))
+        Text(
+            text = stringResource(R.string.onboarding_speed_unit_title),
+            style = MaterialTheme.typography.titleSmall,
+        )
+        Spacer(Modifier.height(8.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            SpeedUnit.entries.forEach { unit ->
+                FilterChip(
+                    selected = speedUnit == unit,
+                    onClick = { onSpeedUnitChange(unit) },
+                    label = {
+                        Text(
+                            stringResource(
+                                when (unit) {
+                                    SpeedUnit.KILOMETERS_PER_HOUR ->
+                                        R.string.speed_unit_kilometers_per_hour
+                                    SpeedUnit.MILES_PER_HOUR ->
+                                        R.string.speed_unit_miles_per_hour
+                                },
+                            ),
+                        )
+                    },
+                )
+            }
+        }
+        Spacer(Modifier.height(24.dp))
+    }
+}
+
+@Composable
+private fun SafetyPage(
+    accepted: Boolean,
+    onAcceptedChange: (Boolean) -> Unit,
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(top = 24.dp),
+    ) {
+        Icon(
+            imageVector = Icons.Filled.Warning,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.primary,
+            modifier = Modifier
+                .size(44.dp)
+                .align(Alignment.CenterHorizontally),
+        )
+        Spacer(Modifier.height(16.dp))
+        Text(
+            text = stringResource(R.string.onboarding_safety_title),
+            style = MaterialTheme.typography.headlineMedium,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.fillMaxWidth(),
+        )
+        Spacer(Modifier.height(8.dp))
+        Text(
+            text = stringResource(R.string.onboarding_safety_subtitle),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.fillMaxWidth(),
+        )
+        Spacer(Modifier.height(20.dp))
+        Surface(
+            color = MaterialTheme.colorScheme.surfaceContainerHigh,
+            shape = MaterialTheme.shapes.medium,
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                SafetyRow(
+                    icon = Icons.Filled.Gavel,
+                    text = stringResource(R.string.onboarding_safety_laws),
+                )
+                SafetyRow(
+                    icon = Icons.Filled.LocalParking,
+                    text = stringResource(R.string.onboarding_safety_parked),
+                )
+                SafetyRow(
+                    icon = Icons.Filled.PhoneAndroid,
+                    text = stringResource(R.string.onboarding_safety_mount),
+                )
+                SafetyRow(
+                    icon = Icons.Filled.Visibility,
+                    text = stringResource(R.string.onboarding_safety_no_phone),
+                )
+            }
+        }
+        Spacer(Modifier.height(16.dp))
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .toggleable(
+                    value = accepted,
+                    role = Role.Checkbox,
+                    onValueChange = onAcceptedChange,
+                )
+                .heightIn(min = 56.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Checkbox(checked = accepted, onCheckedChange = null)
+            Spacer(Modifier.width(8.dp))
+            Text(
+                text = stringResource(R.string.onboarding_safety_acknowledge),
+                style = MaterialTheme.typography.bodyMedium,
+            )
+        }
+        Text(
+            text = stringResource(R.string.onboarding_safety_disclaimer),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Spacer(Modifier.height(24.dp))
+    }
+}
+
+@Composable
+private fun SafetyRow(icon: ImageVector, text: String) {
+    Row(modifier = Modifier.padding(vertical = 8.dp)) {
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.size(22.dp),
+        )
+        Spacer(Modifier.width(12.dp))
+        Text(text = text, style = MaterialTheme.typography.bodyMedium)
     }
 }
 

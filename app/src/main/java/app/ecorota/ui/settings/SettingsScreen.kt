@@ -55,6 +55,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import app.ecorota.BuildConfig
 import app.ecorota.R
 import app.ecorota.core.model.ConsumptionUnit
+import app.ecorota.core.model.SpeedUnit
 import app.ecorota.core.model.ThemeMode
 import app.ecorota.core.model.VehicleProfile
 import app.ecorota.core.scoring.ScoringConfig
@@ -83,6 +84,7 @@ import kotlin.math.roundToInt
 @Stable
 data class SettingsActions(
     val setThemeMode: (ThemeMode) -> Unit,
+    val setSpeedUnit: (SpeedUnit) -> Unit,
     val setKeepScreenOn: (Boolean) -> Unit,
     val setMapTileDownloads: (Boolean) -> Unit,
     val setAutoDetection: (Boolean) -> Unit,
@@ -143,6 +145,7 @@ fun SettingsRoute(container: AppContainer, onOpenPaywall: () -> Unit) {
 
     val actions = SettingsActions(
         setThemeMode = viewModel::setThemeMode,
+        setSpeedUnit = viewModel::setSpeedUnit,
         setKeepScreenOn = viewModel::setKeepScreenOn,
         setMapTileDownloads = viewModel::setMapTileDownloads,
         setAutoDetection = viewModel::setAutoDetectionEnabled,
@@ -237,7 +240,9 @@ private fun SettingsScreen(
         item {
             AppearanceSection(
                 themeMode = state.settings.themeMode,
+                speedUnit = state.settings.speedUnit,
                 onThemeMode = actions.setThemeMode,
+                onSpeedUnit = actions.setSpeedUnit,
             )
         }
         item {
@@ -508,7 +513,12 @@ private fun MapSection(allowDownloads: Boolean, onChange: (Boolean) -> Unit) {
 }
 
 @Composable
-private fun AppearanceSection(themeMode: ThemeMode, onThemeMode: (ThemeMode) -> Unit) {
+private fun AppearanceSection(
+    themeMode: ThemeMode,
+    speedUnit: SpeedUnit,
+    onThemeMode: (ThemeMode) -> Unit,
+    onSpeedUnit: (SpeedUnit) -> Unit,
+) {
     SectionCard(title = stringResource(R.string.settings_appearance_title)) {
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             ThemeMode.entries.forEach { mode ->
@@ -522,6 +532,32 @@ private fun AppearanceSection(themeMode: ThemeMode, onThemeMode: (ThemeMode) -> 
                                     ThemeMode.SYSTEM -> R.string.settings_theme_system
                                     ThemeMode.LIGHT -> R.string.settings_theme_light
                                     ThemeMode.DARK -> R.string.settings_theme_dark
+                                },
+                            ),
+                        )
+                    },
+                )
+            }
+        }
+        Spacer(Modifier.height(16.dp))
+        Text(
+            text = stringResource(R.string.settings_speed_unit_title),
+            style = MaterialTheme.typography.titleSmall,
+        )
+        Spacer(Modifier.height(8.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            SpeedUnit.entries.forEach { unit ->
+                FilterChip(
+                    selected = speedUnit == unit,
+                    onClick = { onSpeedUnit(unit) },
+                    label = {
+                        Text(
+                            stringResource(
+                                when (unit) {
+                                    SpeedUnit.KILOMETERS_PER_HOUR ->
+                                        R.string.speed_unit_kilometers_per_hour
+                                    SpeedUnit.MILES_PER_HOUR ->
+                                        R.string.speed_unit_miles_per_hour
                                 },
                             ),
                         )

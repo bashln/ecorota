@@ -190,9 +190,9 @@ private fun HomeScreen(
                             stringResource(R.string.home_live_duration) to
                                 Formatters.duration(live.durationMs, locale),
                             stringResource(R.string.home_live_speed) to
-                                Formatters.speed(live.currentSpeedKmh, locale),
+                                Formatters.speed(live.currentSpeedKmh, state.speedUnit, locale),
                             stringResource(R.string.home_live_average_speed) to
-                                Formatters.speed(live.averageSpeedKmh, locale),
+                                Formatters.speed(live.averageSpeedKmh, state.speedUnit, locale),
                             stringResource(R.string.home_live_events) to
                                 Formatters.integer(live.eventCount, locale),
                             stringResource(R.string.home_live_avoidable_cost) to
