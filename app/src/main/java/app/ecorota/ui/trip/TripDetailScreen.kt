@@ -67,6 +67,7 @@ import app.ecorota.core.model.DrivingEventType
 import app.ecorota.core.model.EventSeverity
 import app.ecorota.core.model.ScoreCategory
 import app.ecorota.core.model.ScoreComponent
+import app.ecorota.core.model.SpeedUnit
 import app.ecorota.core.model.TripRecord
 import app.ecorota.di.AppContainer
 import app.ecorota.ui.components.EmptyState
@@ -176,6 +177,7 @@ private fun TripDetailScreen(
                     state = state,
                     trip = state.trip,
                     locale = locale,
+                    speedUnit = state.speedUnit,
                     onOpenPaywall = onOpenPaywall,
                     onRequestEnableMapTiles = { showMapConsentDialog = true },
                     onExportGpx = onExportGpx,
@@ -265,6 +267,7 @@ private fun TripDetailContent(
     state: TripDetailUiState,
     trip: TripRecord,
     locale: Locale,
+    speedUnit: SpeedUnit,
     onOpenPaywall: () -> Unit,
     onRequestEnableMapTiles: () -> Unit,
     onExportGpx: () -> Unit,
@@ -288,7 +291,7 @@ private fun TripDetailContent(
             )
         }
         item {
-            StatsCard(trip = trip, locale = locale)
+            StatsCard(trip = trip, locale = locale, speedUnit = speedUnit)
         }
         item {
             BreakdownCard(trip = trip, locale = locale)
@@ -301,6 +304,7 @@ private fun TripDetailContent(
                 trip = trip,
                 isPremium = state.isPremium,
                 locale = locale,
+                speedUnit = speedUnit,
                 onOpenPaywall = onOpenPaywall,
             )
         }
@@ -462,7 +466,7 @@ private fun MapCard(
 }
 
 @Composable
-private fun StatsCard(trip: TripRecord, locale: Locale) {
+private fun StatsCard(trip: TripRecord, locale: Locale, speedUnit: SpeedUnit) {
     SectionCard(title = stringResource(R.string.detail_stats_title)) {
         StatGrid(
             items = listOf(
@@ -473,9 +477,9 @@ private fun StatsCard(trip: TripRecord, locale: Locale) {
                 stringResource(R.string.detail_stat_moving_time) to
                     Formatters.duration(trip.movingDurationMs, locale),
                 stringResource(R.string.detail_stat_average_speed) to
-                    Formatters.speed(trip.averageSpeedKmh, locale),
+                    Formatters.speed(trip.averageSpeedKmh, speedUnit, locale),
                 stringResource(R.string.detail_stat_max_speed) to
-                    Formatters.speed(trip.maxSpeedKmh, locale),
+                    Formatters.speed(trip.maxSpeedKmh, speedUnit, locale),
                 stringResource(R.string.detail_stat_fuel) to
                     Formatters.liters(trip.fuel.estimatedLiters, locale),
                 stringResource(R.string.detail_stat_avoidable_fuel) to
@@ -683,6 +687,7 @@ private fun EventsCard(
     trip: TripRecord,
     isPremium: Boolean,
     locale: Locale,
+    speedUnit: SpeedUnit,
     onOpenPaywall: () -> Unit,
 ) {
     val events = trip.events.sortedBy { it.startedAtMs }
@@ -696,7 +701,12 @@ private fun EventsCard(
         } else {
             events.forEachIndexed { index, event ->
                 if (index > 0) Spacer(Modifier.height(12.dp))
-                EventRow(event = event, isPremium = isPremium, locale = locale)
+                EventRow(
+                    event = event,
+                    isPremium = isPremium,
+                    locale = locale,
+                    speedUnit = speedUnit,
+                )
             }
             if (!isPremium) {
                 Spacer(Modifier.height(12.dp))
@@ -732,7 +742,12 @@ private fun EventsCard(
 }
 
 @Composable
-private fun EventRow(event: DrivingEvent, isPremium: Boolean, locale: Locale) {
+private fun EventRow(
+    event: DrivingEvent,
+    isPremium: Boolean,
+    locale: Locale,
+    speedUnit: SpeedUnit,
+) {
     Row(verticalAlignment = Alignment.Top) {
         Box(
             modifier = Modifier
@@ -764,7 +779,7 @@ private fun EventRow(event: DrivingEvent, isPremium: Boolean, locale: Locale) {
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             Text(
-                text = eventValue(event, locale),
+                text = eventValue(event, locale, speedUnit),
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -791,7 +806,11 @@ private fun EventRow(event: DrivingEvent, isPremium: Boolean, locale: Locale) {
 }
 
 @Composable
-private fun eventValue(event: DrivingEvent, locale: Locale): String = when (event.type) {
+private fun eventValue(
+    event: DrivingEvent,
+    locale: Locale,
+    speedUnit: SpeedUnit,
+): String = when (event.type) {
     DrivingEventType.HARD_ACCELERATION,
     DrivingEventType.HARD_BRAKING,
     DrivingEventType.SHARP_CORNERING,
@@ -801,7 +820,7 @@ private fun eventValue(event: DrivingEvent, locale: Locale): String = when (even
     )
     DrivingEventType.OVERSPEED -> stringResource(
         R.string.detail_event_peak_speed,
-        Formatters.speed(event.peakValue, locale),
+        Formatters.speed(event.peakValue, speedUnit, locale),
     )
     DrivingEventType.IDLING -> stringResource(
         R.string.detail_event_idle_duration,

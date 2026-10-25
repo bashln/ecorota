@@ -9,6 +9,7 @@ import androidx.lifecycle.viewmodel.viewModelFactory
 import app.ecorota.billing.PurchaseResult
 import app.ecorota.core.model.AppSettings
 import app.ecorota.core.model.ConsumptionUnit
+import app.ecorota.core.model.SpeedUnit
 import app.ecorota.core.model.ThemeMode
 import app.ecorota.core.model.VehicleProfile
 import app.ecorota.core.scoring.ScoringConfig
@@ -82,6 +83,8 @@ class SettingsViewModel(private val container: AppContainer) : ViewModel() {
     )
 
     fun setThemeMode(mode: ThemeMode) = updateSettings { it.copy(themeMode = mode) }
+
+    fun setSpeedUnit(unit: SpeedUnit) = updateSettings { it.copy(speedUnit = unit) }
 
     fun setKeepScreenOn(enabled: Boolean) = updateSettings {
         it.copy(keepScreenOnDuringTrip = enabled)
