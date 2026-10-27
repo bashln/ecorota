@@ -116,6 +116,9 @@ fun TripMap(
             if (lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)) {
                 holder.resume(mapView)
             }
+            // Back from a scroll: the view was detached from the window, so ask
+            // for a new frame instead of trusting the last one.
+            mapView.invalidate()
             mapView
         },
         update = { mapView ->
@@ -170,6 +173,11 @@ private fun createMapView(
 ): MapView {
     configureOsmDroid(context)
     return MapView(context).apply {
+        // The map item of a lazy list leaves the window when it scrolls out.
+        // osmdroid destroys its tile provider on window detach by default, and
+        // the same view cannot be revived when it scrolls back. Keep the view
+        // intact and release it through the holder instead.
+        setDestroyMode(false)
         setTileSource(TileSourceFactory.MAPNIK)
         setMultiTouchControls(true)
         setTilesScaledToDpi(true)
