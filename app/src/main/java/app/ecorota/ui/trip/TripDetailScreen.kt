@@ -44,6 +44,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -162,6 +163,12 @@ private fun TripDetailScreen(
     val locale = LocalConfiguration.current.locales[0]
     var showDeleteDialog by remember { mutableStateOf(false) }
     var showMapConsentDialog by remember { mutableStateOf(false) }
+    // Scoped to the screen, not to the list item: scrolling the map out of view
+    // must not rebuild it. Rebuilding a MapView on the main thread froze the UI.
+    val mapHolder = remember { TripMapHolder() }
+    DisposableEffect(mapHolder) {
+        onDispose { mapHolder.dispose() }
+    }
 
     Box(modifier = Modifier.fillMaxSize()) {
         Column(modifier = Modifier.fillMaxSize()) {
@@ -178,6 +185,7 @@ private fun TripDetailScreen(
                     trip = state.trip,
                     locale = locale,
                     speedUnit = state.speedUnit,
+                    mapHolder = mapHolder,
                     onOpenPaywall = onOpenPaywall,
                     onRequestEnableMapTiles = { showMapConsentDialog = true },
                     onExportGpx = onExportGpx,
@@ -268,6 +276,7 @@ private fun TripDetailContent(
     trip: TripRecord,
     locale: Locale,
     speedUnit: SpeedUnit,
+    mapHolder: TripMapHolder,
     onOpenPaywall: () -> Unit,
     onRequestEnableMapTiles: () -> Unit,
     onExportGpx: () -> Unit,
@@ -287,6 +296,7 @@ private fun TripDetailContent(
             MapCard(
                 trip = trip,
                 allowMapTiles = state.allowMapTiles,
+                mapHolder = mapHolder,
                 onRequestEnableTiles = onRequestEnableMapTiles,
             )
         }
@@ -381,6 +391,7 @@ private fun HeaderCard(
 private fun MapCard(
     trip: TripRecord,
     allowMapTiles: Boolean,
+    mapHolder: TripMapHolder,
     onRequestEnableTiles: () -> Unit,
 ) {
     SectionCard(title = stringResource(R.string.detail_map_title)) {
@@ -425,6 +436,7 @@ private fun MapCard(
                     events = trip.events,
                     allowTileDownloads = allowMapTiles,
                     contentDescription = stringResource(R.string.detail_map_description),
+                    holder = mapHolder,
                     modifier = Modifier.matchParentSize(),
                 )
                 if (!allowMapTiles) {
