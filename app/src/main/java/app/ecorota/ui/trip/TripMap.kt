@@ -26,6 +26,47 @@ import org.osmdroid.views.overlay.Polyline
 import kotlin.math.abs
 
 /**
+ * Owns the single [MapView] of a trip screen.
+ *
+ * The detail screen is a lazy list, so an item that scrolls out of the viewport
+ * is disposed and composed again when it scrolls back. Building the map in the
+ * item meant a new MapView, configuration reload and tile cache reopen on the
+ * main thread at every scroll back, which was long enough to freeze the app.
+ * The holder keeps the view for the whole screen and releases it only when the
+ * screen goes away.
+ */
+class TripMapHolder {
+    internal var mapView: MapView? = null
+    internal var appliedRoute: List<RoutePoint>? = null
+    internal var appliedEvents: List<DrivingEvent>? = null
+    internal var appliedTiles: Boolean? = null
+    private var resumed = false
+
+    internal fun resume(view: MapView) {
+        if (resumed) return
+        view.onResume()
+        resumed = true
+    }
+
+    internal fun pause(view: MapView) {
+        if (!resumed) return
+        view.onPause()
+        resumed = false
+    }
+
+    /** Stops the tile provider and releases the map. Call when the screen goes away. */
+    fun dispose() {
+        val view = mapView ?: return
+        pause(view)
+        view.onDetach()
+        mapView = null
+        appliedRoute = null
+        appliedEvents = null
+        appliedTiles = null
+    }
+}
+
+/**
  * osmdroid map of a recorded route.
  *
  * Tile downloads follow the user's map consent switch: with downloads off the
@@ -38,11 +79,11 @@ fun TripMap(
     events: List<DrivingEvent>,
     allowTileDownloads: Boolean,
     contentDescription: String,
+    holder: TripMapHolder,
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
-    val holder = remember { MapViewHolder() }
     val routePoints = remember(route) {
         route.map { GeoPoint(it.point.latitude, it.point.longitude) }
     }
@@ -51,72 +92,92 @@ fun TripMap(
             .map { GeoPoint(it.latitude, it.longitude) }
     }
 
-    DisposableEffect(lifecycleOwner) {
+    DisposableEffect(lifecycleOwner, holder) {
         val observer = LifecycleEventObserver { _, event ->
             val mapView = holder.mapView ?: return@LifecycleEventObserver
             when (event) {
-                Lifecycle.Event.ON_RESUME -> mapView.onResume()
-                Lifecycle.Event.ON_PAUSE -> mapView.onPause()
+                Lifecycle.Event.ON_RESUME -> holder.resume(mapView)
+                Lifecycle.Event.ON_PAUSE -> holder.pause(mapView)
                 else -> Unit
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose {
             lifecycleOwner.lifecycle.removeObserver(observer)
-            holder.mapView?.onDetach()
-            holder.mapView = null
+            // Off screen: pause the tile provider but keep the map for the next
+            // scroll back into view.
+            holder.mapView?.let { holder.pause(it) }
         }
     }
 
     AndroidView(
         factory = { viewContext ->
-            configureOsmDroid(viewContext)
-            MapView(viewContext).apply {
-                setTileSource(TileSourceFactory.MAPNIK)
-                setMultiTouchControls(true)
-                setTilesScaledToDpi(true)
-                setUseDataConnection(allowTileDownloads)
-                minZoomLevel = 3.0
-                maxZoomLevel = 20.0
-                holder.mapView = this
-                if (lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)) {
-                    onResume()
-                }
+            val mapView = holder.mapView ?: createMapView(viewContext, holder, allowTileDownloads)
+            if (lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)) {
+                holder.resume(mapView)
             }
+            mapView
         },
         update = { mapView ->
-            val enablingTiles = allowTileDownloads &&
-                holder.lastAllowTileDownloads == false
-            mapView.setUseDataConnection(allowTileDownloads)
-            if (enablingTiles) {
-                // Empty tiles can stay in the in-memory cache after consent is
-                // granted; drop them so the provider asks the network again.
-                mapView.tileProvider.clearTileCache()
-            }
-            holder.lastAllowTileDownloads = allowTileDownloads
-            mapView.invalidate()
-            mapView.overlays.clear()
-            if (routePoints.isNotEmpty()) {
-                val polyline = Polyline(mapView).apply {
-                    setPoints(routePoints)
-                    outlinePaint.color = ContextCompat.getColor(context, R.color.brand_green)
-                    outlinePaint.strokeWidth = 6f
+            if (holder.appliedTiles != allowTileDownloads) {
+                val enablingTiles = allowTileDownloads && holder.appliedTiles == false
+                mapView.setUseDataConnection(allowTileDownloads)
+                if (enablingTiles) {
+                    // Empty tiles can stay in the in-memory cache after consent
+                    // is granted; drop them so the provider asks again.
+                    mapView.tileProvider.clearTileCache()
                 }
-                mapView.overlays.add(polyline)
+                holder.appliedTiles = allowTileDownloads
+                mapView.invalidate()
             }
-            val markerIcon = ContextCompat.getDrawable(context, R.drawable.ic_event_marker)
-            eventPoints.forEach { point ->
-                val marker = Marker(mapView).apply {
-                    position = point
-                    icon = markerIcon
-                    setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_CENTER)
+            // Rebuilding the overlays clears and re-adds every marker, so it is
+            // only done when the data changes, not on every recomposition or
+            // scroll of the surrounding list.
+            if (holder.appliedRoute !== route || holder.appliedEvents !== events) {
+                holder.appliedRoute = route
+                holder.appliedEvents = events
+                mapView.overlays.clear()
+                if (routePoints.isNotEmpty()) {
+                    val polyline = Polyline(mapView).apply {
+                        setPoints(routePoints)
+                        outlinePaint.color = ContextCompat.getColor(context, R.color.brand_green)
+                        outlinePaint.strokeWidth = 6f
+                    }
+                    mapView.overlays.add(polyline)
                 }
-                mapView.overlays.add(marker)
+                if (eventPoints.isNotEmpty()) {
+                    val markerIcon = ContextCompat.getDrawable(context, R.drawable.ic_event_marker)
+                    eventPoints.forEach { point ->
+                        val marker = Marker(mapView).apply {
+                            position = point
+                            icon = markerIcon
+                            setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_CENTER)
+                        }
+                        mapView.overlays.add(marker)
+                    }
+                }
+                mapView.post { focusRoute(mapView, routePoints + eventPoints) }
             }
-            mapView.post { focusRoute(mapView, routePoints + eventPoints) }
         },
         modifier = modifier.semantics { this.contentDescription = contentDescription },
     )
+}
+
+private fun createMapView(
+    context: Context,
+    holder: TripMapHolder,
+    allowTileDownloads: Boolean,
+): MapView {
+    configureOsmDroid(context)
+    return MapView(context).apply {
+        setTileSource(TileSourceFactory.MAPNIK)
+        setMultiTouchControls(true)
+        setTilesScaledToDpi(true)
+        setUseDataConnection(allowTileDownloads)
+        minZoomLevel = 3.0
+        maxZoomLevel = 20.0
+        holder.mapView = this
+    }
 }
 
 private fun configureOsmDroid(context: Context) {
@@ -150,9 +211,4 @@ private fun focusRoute(mapView: MapView, points: List<GeoPoint>) {
         false,
         96,
     )
-}
-
-private class MapViewHolder {
-    var mapView: MapView? = null
-    var lastAllowTileDownloads: Boolean? = null
 }
