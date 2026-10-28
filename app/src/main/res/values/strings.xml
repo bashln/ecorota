@@ -197,6 +197,7 @@
     <string name="detail_automatic_trip">Started automatically</string>
     <string name="detail_map_title">Route</string>
     <string name="detail_map_description">Map of the recorded route with event markers</string>
+    <string name="detail_map_reset_focus">Show full route</string>
     <string name="detail_map_empty_title">No route recorded</string>
     <string name="detail_map_empty_body">This trip was saved without GPS points.</string>
     <string name="map_attribution">© OpenStreetMap contributors</string>

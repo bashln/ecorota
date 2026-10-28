@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -166,6 +167,8 @@ private fun TripDetailScreen(
     // Scoped to the screen, not to the list item: scrolling the map out of view
     // must not rebuild it. Rebuilding a MapView on the main thread froze the UI.
     val mapHolder = remember { TripMapHolder() }
+    var selectedEventId by remember { mutableStateOf<String?>(null) }
+    var mapResetFocusKey by remember { mutableStateOf(0) }
     DisposableEffect(mapHolder) {
         onDispose { mapHolder.dispose() }
     }
@@ -186,6 +189,13 @@ private fun TripDetailScreen(
                     locale = locale,
                     speedUnit = state.speedUnit,
                     mapHolder = mapHolder,
+                    selectedEventId = selectedEventId,
+                    onSelectEvent = { selectedEventId = it },
+                    mapResetFocusKey = mapResetFocusKey,
+                    onResetMapFocus = {
+                        selectedEventId = null
+                        mapResetFocusKey++
+                    },
                     onOpenPaywall = onOpenPaywall,
                     onRequestEnableMapTiles = { showMapConsentDialog = true },
                     onExportGpx = onExportGpx,
@@ -277,6 +287,10 @@ private fun TripDetailContent(
     locale: Locale,
     speedUnit: SpeedUnit,
     mapHolder: TripMapHolder,
+    selectedEventId: String?,
+    onSelectEvent: (String) -> Unit,
+    mapResetFocusKey: Int,
+    onResetMapFocus: () -> Unit,
     onOpenPaywall: () -> Unit,
     onRequestEnableMapTiles: () -> Unit,
     onExportGpx: () -> Unit,
@@ -297,6 +311,9 @@ private fun TripDetailContent(
                 trip = trip,
                 allowMapTiles = state.allowMapTiles,
                 mapHolder = mapHolder,
+                selectedEventId = selectedEventId,
+                mapResetFocusKey = mapResetFocusKey,
+                onResetMapFocus = onResetMapFocus,
                 onRequestEnableTiles = onRequestEnableMapTiles,
             )
         }
@@ -315,6 +332,8 @@ private fun TripDetailContent(
                 isPremium = state.isPremium,
                 locale = locale,
                 speedUnit = speedUnit,
+                selectedEventId = selectedEventId,
+                onSelectEvent = onSelectEvent,
                 onOpenPaywall = onOpenPaywall,
             )
         }
@@ -392,6 +411,9 @@ private fun MapCard(
     trip: TripRecord,
     allowMapTiles: Boolean,
     mapHolder: TripMapHolder,
+    selectedEventId: String?,
+    mapResetFocusKey: Int,
+    onResetMapFocus: () -> Unit,
     onRequestEnableTiles: () -> Unit,
 ) {
     SectionCard(title = stringResource(R.string.detail_map_title)) {
@@ -428,17 +450,25 @@ private fun MapCard(
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(230.dp)
+                    .height(300.dp)
                     .clip(RoundedCornerShape(14.dp)),
             ) {
                 TripMap(
                     route = trip.route,
                     events = trip.events,
+                    selectedEventId = selectedEventId,
+                    resetFocusKey = mapResetFocusKey,
                     allowTileDownloads = allowMapTiles,
                     contentDescription = stringResource(R.string.detail_map_description),
                     holder = mapHolder,
                     modifier = Modifier.matchParentSize(),
                 )
+                TextButton(
+                    onClick = onResetMapFocus,
+                    modifier = Modifier.align(Alignment.TopEnd).padding(4.dp),
+                ) {
+                    Text(stringResource(R.string.detail_map_reset_focus))
+                }
                 if (!allowMapTiles) {
                     Surface(
                         modifier = Modifier
@@ -700,6 +730,8 @@ private fun EventsCard(
     isPremium: Boolean,
     locale: Locale,
     speedUnit: SpeedUnit,
+    selectedEventId: String?,
+    onSelectEvent: (String) -> Unit,
     onOpenPaywall: () -> Unit,
 ) {
     val events = trip.events.sortedBy { it.startedAtMs }
@@ -718,6 +750,8 @@ private fun EventsCard(
                     isPremium = isPremium,
                     locale = locale,
                     speedUnit = speedUnit,
+                    selected = event.id == selectedEventId,
+                    onClick = { if (event.location != null) onSelectEvent(event.id) },
                 )
             }
             if (!isPremium) {
@@ -759,8 +793,21 @@ private fun EventRow(
     isPremium: Boolean,
     locale: Locale,
     speedUnit: SpeedUnit,
+    selected: Boolean,
+    onClick: () -> Unit,
 ) {
-    Row(verticalAlignment = Alignment.Top) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .background(
+                if (selected) MaterialTheme.colorScheme.secondaryContainer
+                else MaterialTheme.colorScheme.surface,
+            )
+            .clickable(enabled = event.location != null, onClick = onClick)
+            .padding(8.dp),
+        verticalAlignment = Alignment.Top,
+    ) {
         Box(
             modifier = Modifier
                 .size(36.dp)
@@ -840,7 +887,7 @@ private fun eventValue(
     )
 }
 
-private fun DrivingEventType.labelRes(): Int = when (this) {
+internal fun DrivingEventType.labelRes(): Int = when (this) {
     DrivingEventType.HARD_ACCELERATION -> R.string.event_hard_acceleration
     DrivingEventType.HARD_BRAKING -> R.string.event_hard_braking
     DrivingEventType.SHARP_CORNERING -> R.string.event_sharp_cornering
