@@ -1,6 +1,7 @@
 package app.ecorota.ui.trip
 
 import android.content.Context
+import android.text.format.DateFormat
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.remember
@@ -15,6 +16,7 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import app.ecorota.R
 import app.ecorota.core.model.DrivingEvent
+import app.ecorota.core.model.GeoPoint as EventGeoPoint
 import app.ecorota.core.model.RoutePoint
 import org.osmdroid.config.Configuration
 import org.osmdroid.tileprovider.tilesource.TileSourceFactory
@@ -23,7 +25,9 @@ import org.osmdroid.util.GeoPoint
 import org.osmdroid.views.MapView
 import org.osmdroid.views.overlay.Marker
 import org.osmdroid.views.overlay.Polyline
+import java.util.Date
 import kotlin.math.abs
+import kotlin.math.max
 
 /**
  * Owns the single [MapView] of a trip screen.
@@ -39,7 +43,11 @@ class TripMapHolder {
     internal var mapView: MapView? = null
     internal var appliedRoute: List<RoutePoint>? = null
     internal var appliedEvents: List<DrivingEvent>? = null
+    internal var eventMarkers: Map<String, Marker> = emptyMap()
+    internal var appliedSelectedEventId: String? = null
     internal var appliedTiles: Boolean? = null
+    internal var appliedInitialFocusKey: Pair<List<RoutePoint>, Int>? = null
+    internal var hasAppliedInitialFocus = false
     private var resumed = false
 
     internal fun resume(view: MapView) {
@@ -62,7 +70,11 @@ class TripMapHolder {
         mapView = null
         appliedRoute = null
         appliedEvents = null
+        eventMarkers = emptyMap()
+        appliedSelectedEventId = null
         appliedTiles = null
+        appliedInitialFocusKey = null
+        hasAppliedInitialFocus = false
     }
 }
 
@@ -77,6 +89,8 @@ class TripMapHolder {
 fun TripMap(
     route: List<RoutePoint>,
     events: List<DrivingEvent>,
+    selectedEventId: String?,
+    resetFocusKey: Int,
     allowTileDownloads: Boolean,
     contentDescription: String,
     holder: TripMapHolder,
@@ -87,9 +101,8 @@ fun TripMap(
     val routePoints = remember(route) {
         route.map { GeoPoint(it.point.latitude, it.point.longitude) }
     }
-    val eventPoints = remember(events) {
-        events.mapNotNull { it.location }
-            .map { GeoPoint(it.latitude, it.longitude) }
+    val selectedPoint = remember(events, selectedEventId) {
+        selectedMapLocation(events, selectedEventId)?.let { GeoPoint(it.latitude, it.longitude) }
     }
 
     DisposableEffect(lifecycleOwner, holder) {
@@ -136,10 +149,11 @@ fun TripMap(
             // Rebuilding the overlays clears and re-adds every marker, so it is
             // only done when the data changes, not on every recomposition or
             // scroll of the surrounding list.
-            if (holder.appliedRoute !== route || holder.appliedEvents !== events) {
+            if (holder.appliedRoute !== route) {
                 holder.appliedRoute = route
-                holder.appliedEvents = events
                 mapView.overlays.clear()
+                holder.appliedEvents = null
+                holder.eventMarkers = emptyMap()
                 if (routePoints.isNotEmpty()) {
                     val polyline = Polyline(mapView).apply {
                         setPoints(routePoints)
@@ -148,22 +162,76 @@ fun TripMap(
                     }
                     mapView.overlays.add(polyline)
                 }
-                if (eventPoints.isNotEmpty()) {
-                    val markerIcon = ContextCompat.getDrawable(context, R.drawable.ic_event_marker)
-                    eventPoints.forEach { point ->
-                        val marker = Marker(mapView).apply {
-                            position = point
-                            icon = markerIcon
-                            setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_CENTER)
+            }
+            if (holder.appliedEvents !== events) {
+                holder.appliedEvents = events
+                mapView.overlays.removeAll { it is Marker }
+                holder.eventMarkers = events.mapNotNull { event ->
+                    event.location?.let { location ->
+                        event.id to eventMarker(
+                            mapView,
+                            context,
+                            event,
+                            GeoPoint(location.latitude, location.longitude),
+                        )
+                    }
+                }.toMap()
+                holder.eventMarkers.values.forEach { marker ->
+                    mapView.overlays.add(marker)
+                }
+            }
+            val focusKey = route to resetFocusKey
+            if (holder.appliedInitialFocusKey != focusKey) {
+                holder.appliedInitialFocusKey = focusKey
+                mapView.post {
+                    focusRoute(
+                        mapView,
+                        routePoints + events.mapNotNull { event ->
+                            event.location?.let { GeoPoint(it.latitude, it.longitude) }
+                        },
+                    )
+                    holder.hasAppliedInitialFocus = true
+                    selectedMapLocation(holder.appliedEvents.orEmpty(), holder.appliedSelectedEventId)
+                        ?.let { location ->
+                            focusEvent(mapView, GeoPoint(location.latitude, location.longitude))
+                            holder.eventMarkers[holder.appliedSelectedEventId]?.showInfoWindow()
                         }
-                        mapView.overlays.add(marker)
+                }
+            }
+            if (holder.appliedSelectedEventId != selectedEventId) {
+                holder.eventMarkers[holder.appliedSelectedEventId]?.closeInfoWindow()
+                holder.appliedSelectedEventId = selectedEventId
+                if (holder.hasAppliedInitialFocus) {
+                    selectedPoint?.let {
+                        focusEvent(mapView, it)
+                        holder.eventMarkers[selectedEventId]?.showInfoWindow()
                     }
                 }
-                mapView.post { focusRoute(mapView, routePoints + eventPoints) }
             }
         },
         modifier = modifier.semantics { this.contentDescription = contentDescription },
     )
+}
+
+internal fun selectedMapLocation(events: List<DrivingEvent>, eventId: String?): EventGeoPoint? =
+    events.firstOrNull { it.id == eventId }?.location
+
+private fun focusEvent(mapView: MapView, point: GeoPoint) {
+    mapView.controller.setZoom(max(mapView.zoomLevelDouble, 17.0))
+    mapView.controller.animateTo(point)
+}
+
+private fun eventMarker(
+    mapView: MapView,
+    context: Context,
+    event: DrivingEvent,
+    point: GeoPoint,
+) = Marker(mapView).apply {
+    position = point
+    icon = ContextCompat.getDrawable(context, R.drawable.ic_event_marker)
+    title = context.getString(event.type.labelRes())
+    snippet = DateFormat.getTimeFormat(context).format(Date(event.startedAtMs))
+    setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_CENTER)
 }
 
 private fun createMapView(

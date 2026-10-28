@@ -198,6 +198,7 @@
     <string name="detail_automatic_trip">Iniciada automaticamente</string>
     <string name="detail_map_title">Rota</string>
     <string name="detail_map_description">Mapa da rota gravada com marcadores de eventos</string>
+    <string name="detail_map_reset_focus">Mostrar rota completa</string>
     <string name="detail_map_empty_title">Nenhuma rota gravada</string>
     <string name="detail_map_empty_body">Esta viagem foi salva sem pontos de GPS.</string>
     <string name="map_attribution">© OpenStreetMap contributors</string>
