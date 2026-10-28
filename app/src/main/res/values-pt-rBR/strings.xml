@@ -30,7 +30,7 @@
     <string name="location_permission_denied_title">Permissão de localização necessária</string>
     <string name="location_permission_denied_body">O EcoRota não consegue detectar nem gravar viagens sem acesso à localização. Você pode permitir nos ajustes do aplicativo.</string>
     <string name="auto_detection_background_title">Permitir localização o tempo todo?</string>
-    <string name="auto_detection_background_disclosure">A detecção automática procura viagens enquanto o EcoRota está em segundo plano, para que uma viagem comece sem você abrir o aplicativo. A localização é lida cerca de uma vez por minuto e apenas para detectar o início e o fim de um trajeto. Você pode desligar isso a qualquer momento nos Ajustes.</string>
+    <string name="auto_detection_background_disclosure">A detecção automática procura viagens enquanto o EcoRota está em segundo plano, para que uma viagem comece sem você abrir o aplicativo. A localização é solicitada a cada 30 segundos, aproximadamente, para detectar o início e o fim de um trajeto. Você pode desligar isso a qualquer momento nos Ajustes.</string>
     <string name="auto_detection_background_allow">Permitir o tempo todo</string>
     <string name="auto_detection_settings_title">Ativar localização em segundo plano</string>
     <string name="auto_detection_settings_body">No Android 11 e mais recentes o sistema não mostra uma janela para localização em segundo plano. Abra os ajustes do aplicativo, escolha Permissões, depois Localização, e selecione Permitir o tempo todo. Sem isso, a detecção automática só funciona com o EcoRota aberto.</string>

@@ -22,9 +22,9 @@ import com.google.android.gms.location.Priority
 /**
  * The two location streams tracking needs.
  *
- * Auto-detection only asks for a fix about once a minute and after 150 m of
- * displacement, which is what makes the always-on monitor cheap. Recording
- * trades battery for resolution.
+ * Auto-detection asks for low-power fixes about every 30 seconds. Recording
+ * trades battery for resolution and keeps receiving fixes while stationary so
+ * the trip detector can confirm that the car has parked.
  *
  * Google Play services is used when present. On de-Googled devices, common for
  * F-Droid users, the class falls back to the platform LocationManager so the

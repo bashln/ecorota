@@ -5,11 +5,11 @@ enum class LocationProfile(
     val intervalMs: Long,
     val minDistanceMeters: Float,
 ) {
-    /** Cheap fixes used only to notice that a drive started or ended. */
-    MONITOR(intervalMs = 60_000L, minDistanceMeters = 150f),
+    /** Low-power fixes frequent enough to confirm movement without a large delay. */
+    MONITOR(intervalMs = 30_000L, minDistanceMeters = 0f),
 
-    /** Higher resolution while a trip is being scored. */
-    RECORDING(intervalMs = 3_000L, minDistanceMeters = 5f),
+    /** Higher resolution while a trip is scored, including while stopped. */
+    RECORDING(intervalMs = 3_000L, minDistanceMeters = 0f),
 }
 
 /**
