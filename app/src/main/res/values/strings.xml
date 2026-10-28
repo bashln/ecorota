@@ -31,7 +31,7 @@
     <string name="location_permission_denied_title">Location permission needed</string>
     <string name="location_permission_denied_body">EcoRota cannot detect or record trips without location access. You can allow it in the app settings.</string>
     <string name="auto_detection_background_title">Allow all-the-time location?</string>
-    <string name="auto_detection_background_disclosure">Auto-detection watches for drives while EcoRota is in the background, so a trip can start without you opening the app. Location is read about once a minute and only to detect the start and end of a drive. You can turn this off at any time in Settings.</string>
+    <string name="auto_detection_background_disclosure">Auto-detection watches for drives while EcoRota is in the background, so a trip can start without you opening the app. Location is requested about every 30 seconds to detect the start and end of a drive. You can turn this off at any time in Settings.</string>
     <string name="auto_detection_background_allow">Allow all the time</string>
     <string name="auto_detection_settings_title">Enable background location</string>
     <string name="auto_detection_settings_body">On Android 11 and newer the system does not show a dialog for background location. Open the app settings, choose Permissions, then Location, and select Allow all the time. Auto-detection works without it only while EcoRota is open.</string>
