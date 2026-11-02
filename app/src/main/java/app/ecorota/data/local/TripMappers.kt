@@ -125,7 +125,7 @@ object TripMappers {
         score = trip.score,
         breakdown = trip.toBreakdown(),
         fuel = trip.toFuelEstimate(),
-        events = events.sortedBy { it.sortOrder }.map { it.toDrivingEvent() },
+        events = events.sortedBy { it.sortOrder }.mapNotNull { it.toDrivingEventOrNull() },
         route = TripCodecs.decodeRoute(
             routePolyline = trip.routePolyline,
             speedSeries = trip.speedSeries,
@@ -178,22 +178,26 @@ object TripMappers {
         currency = currency,
     )
 
-    private fun DrivingEventEntity.toDrivingEvent(): DrivingEvent = DrivingEvent(
-        id = id,
-        type = DrivingEventType.valueOf(type),
-        startedAtMs = startedAtMs,
-        endedAtMs = endedAtMs,
-        peakValue = peakValue,
-        meanValue = meanValue,
-        startSpeedKmh = startSpeedKmh,
-        endSpeedKmh = endSpeedKmh,
-        severity = EventSeverity.valueOf(severity),
-        penaltyPoints = penaltyPoints,
-        extraFuelMilliliters = extraFuelMilliliters,
-        location = if (latitude != null && longitude != null) {
-            GeoPoint(latitude = latitude, longitude = longitude)
-        } else {
-            null
-        },
-    )
+    private fun DrivingEventEntity.toDrivingEventOrNull(): DrivingEvent? {
+        val parsedType = DrivingEventType.entries.firstOrNull { it.name == type } ?: return null
+        val parsedSeverity = EventSeverity.entries.firstOrNull { it.name == severity } ?: return null
+        return DrivingEvent(
+            id = id,
+            type = parsedType,
+            startedAtMs = startedAtMs,
+            endedAtMs = endedAtMs,
+            peakValue = peakValue,
+            meanValue = meanValue,
+            startSpeedKmh = startSpeedKmh,
+            endSpeedKmh = endSpeedKmh,
+            severity = parsedSeverity,
+            penaltyPoints = penaltyPoints,
+            extraFuelMilliliters = extraFuelMilliliters,
+            location = if (latitude != null && longitude != null) {
+                GeoPoint(latitude = latitude, longitude = longitude)
+            } else {
+                null
+            },
+        )
+    }
 }

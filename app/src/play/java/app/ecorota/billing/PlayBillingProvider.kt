@@ -69,10 +69,12 @@ class PlayBillingProvider(
     override val available: Boolean = true
 
     private val purchasesUpdatedListener = PurchasesUpdatedListener { result, purchases ->
+        val items = purchases.orEmpty()
         val waiter = synchronized(waiterLock) { purchaseWaiter }
-        // A purchase update that arrives when nobody is waiting is picked up by
-        // the next restorePurchase(), which queries Play directly.
-        waiter?.complete(PurchaseUpdate(result, purchases.orEmpty()))
+        val delivered = waiter?.complete(PurchaseUpdate(result, items)) == true
+        if (!delivered && !closed && result.responseCode == BillingClient.BillingResponseCode.OK) {
+            handleAsyncPurchases(items)
+        }
     }
 
     override fun start() {
@@ -215,7 +217,8 @@ class PlayBillingProvider(
         }
     }
 
-    override suspend fun restorePurchase(): Boolean {        if (closed) return false
+    override suspend fun restorePurchase(): Boolean {
+        if (closed) return false
 
         val client = try {
             ensureConnected()
@@ -231,9 +234,24 @@ class PlayBillingProvider(
             return false
         }
 
+        purchases.filter {
+            TIP_PRODUCT_ID in it.products && it.purchaseState == Purchase.PurchaseState.PURCHASED
+        }.forEach { tip ->
+            consume(client, tip.purchaseToken)
+        }
+
         val purchase = purchases.firstOrNull {
             PREMIUM_PRODUCT_ID in it.products && it.purchaseState == Purchase.PurchaseState.PURCHASED
-        } ?: return false
+        }
+        if (purchase == null) {
+            val hasPending = purchases.any {
+                PREMIUM_PRODUCT_ID in it.products && it.purchaseState == Purchase.PurchaseState.PENDING
+            }
+            if (!hasPending && premiumRepository.current().source == PremiumSource.PLAY_BILLING) {
+                premiumRepository.setPremium(false, PremiumSource.NONE)
+            }
+            return false
+        }
 
         return grant(client, purchase) is PurchaseResult.Success
     }
@@ -410,37 +428,63 @@ class PlayBillingProvider(
         return PurchaseResult.Success
     }
 
-    /**
-     * Play reports [BillingClient.BillingResponseCode.ITEM_ALREADY_OWNED] without
-     * the purchase, so query it back: the entitlement is granted, and an
-     * unacknowledged purchase is acknowledged while there is a chance to.
-     */    private suspend fun grantOwnedPurchase(client: BillingClient) {
-        val purchase = try {
-            queryInAppPurchases(client).firstOrNull {
-                PREMIUM_PRODUCT_ID in it.products && it.purchaseState == Purchase.PurchaseState.PURCHASED
+    private fun handleAsyncPurchases(purchases: List<Purchase>) {
+        if (purchases.isEmpty()) return
+        scope.launch {
+            val client = try {
+                ensureConnected()
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (_: BillingFailure) {
+                return@launch
             }
+            for (purchase in purchases) {
+                if (purchase.purchaseState != Purchase.PurchaseState.PURCHASED) continue
+                if (PREMIUM_PRODUCT_ID in purchase.products) {
+                    grant(client, purchase)
+                }
+                if (TIP_PRODUCT_ID in purchase.products) {
+                    consume(client, purchase.purchaseToken)
+                }
+            }
+        }
+    }
+
+    /**
+     * Play reports [BillingClient.BillingResponseCode.ITEM_ALREADY_OWNED] for both
+     * completed and pending one-time purchases, so we must verify the queried
+     * purchase state before granting entitlement.
+     */
+    private suspend fun resolveAlreadyOwnedPurchase(client: BillingClient): PurchaseResult {
+        val purchases = try {
+            queryInAppPurchases(client)
         } catch (failure: BillingFailure) {
             Log.w(TAG, "owned purchase query failed: ${responseCodeName(failure.responseCode)}")
-            null
+            return failure.toPurchaseResult()
         }
 
-        if (purchase != null && !purchase.isAcknowledged) {
-            val code = acknowledge(client, purchase.purchaseToken)
-            if (code != BillingClient.BillingResponseCode.OK) {
-                Log.w(TAG, "acknowledge failed: ${responseCodeName(code)}")
-            }
+        val purchased = purchases.firstOrNull {
+            PREMIUM_PRODUCT_ID in it.products && it.purchaseState == Purchase.PurchaseState.PURCHASED
+        }
+        if (purchased != null) {
+            grant(client, purchased)
+            return PurchaseResult.AlreadyOwned
         }
 
-        premiumRepository.setPremium(true, PremiumSource.PLAY_BILLING)
+        val hasPending = purchases.any {
+            PREMIUM_PRODUCT_ID in it.products && it.purchaseState == Purchase.PurchaseState.PENDING
+        }
+        return if (hasPending) {
+            PurchaseResult.Failed(PENDING_PURCHASE)
+        } else {
+            PurchaseResult.Failed(responseCodeName(BillingClient.BillingResponseCode.ITEM_ALREADY_OWNED))
+        }
     }
 
     private suspend fun launchFailure(client: BillingClient, responseCode: Int): PurchaseResult =
         when (responseCode) {
             BillingClient.BillingResponseCode.USER_CANCELED -> PurchaseResult.Cancelled
-            BillingClient.BillingResponseCode.ITEM_ALREADY_OWNED -> {
-                grantOwnedPurchase(client)
-                PurchaseResult.AlreadyOwned
-            }
+            BillingClient.BillingResponseCode.ITEM_ALREADY_OWNED -> resolveAlreadyOwnedPurchase(client)
             else -> BillingFailure(responseCode).toPurchaseResult()
         }
 

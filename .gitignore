@@ -24,5 +24,7 @@ Thumbs.db
 
 # Secrets and local config
 *.jks
+*.jks.b64
 *.keystore
+keystore.properties
 secrets.properties

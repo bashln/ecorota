@@ -1,7 +1,9 @@
 package app.ecorota.update
 
 import android.content.Context
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 
 /** A newer release found on the project's GitHub releases page. */
 data class AppUpdate(
@@ -64,4 +66,18 @@ interface UpdateController {
     fun canInstall(context: Context): Boolean
 
     fun dismiss()
+}
+
+class NoOpUpdateController : UpdateController {
+    private val mutableState = MutableStateFlow<UpdateState>(UpdateState.Idle)
+    override val supported: Boolean = false
+    override val state: StateFlow<UpdateState> = mutableState.asStateFlow()
+
+    override fun start() = Unit
+    override fun check(manual: Boolean) = Unit
+    override fun download() = Unit
+    override fun install(context: Context) = Unit
+    override fun openInstallPermission(context: Context) = Unit
+    override fun canInstall(context: Context): Boolean = false
+    override fun dismiss() = Unit
 }

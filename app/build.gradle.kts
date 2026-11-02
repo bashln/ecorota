@@ -39,6 +39,7 @@ val releaseSigningConfigured = listOf(
 // Without an override the local development values are used.
 val appVersionCode = providers.gradleProperty("appVersionCode").orNull?.toIntOrNull() ?: 1
 val appVersionName = providers.gradleProperty("appVersionName").orNull ?: "0.1.0"
+val fdroidBuild = providers.gradleProperty("fdroidBuild").orNull?.toBooleanStrictOrNull() ?: false
 
 android {
     namespace = "app.ecorota"
@@ -60,6 +61,7 @@ android {
         create("play") {
             dimension = "distribution"
             buildConfigField("boolean", "BILLING_ENABLED", "true")
+            buildConfigField("boolean", "UPDATER_ENABLED", "false")
         }
         // Community build (F-Droid and self-builds): no billing SDK, everything unlocked.
         create("libre") {
@@ -68,6 +70,7 @@ android {
             versionNameSuffix = "-libre"
             manifestPlaceholders["appLabel"] = "EcoRota Libre"
             buildConfigField("boolean", "BILLING_ENABLED", "false")
+            buildConfigField("boolean", "UPDATER_ENABLED", (!fdroidBuild).toString())
         }
     }
 

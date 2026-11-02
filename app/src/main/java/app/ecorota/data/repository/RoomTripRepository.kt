@@ -10,7 +10,7 @@ import app.ecorota.data.local.TripWithEvents
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 
-class RoomTripRepository(database: EcoRotaDatabase) : TripRepository {
+class RoomTripRepository(private val database: EcoRotaDatabase) : TripRepository {
 
     private val tripDao = database.tripDao()
 
@@ -42,17 +42,21 @@ class RoomTripRepository(database: EcoRotaDatabase) : TripRepository {
 
     override suspend fun deleteTrip(id: String) {
         tripDao.deleteTrip(id)
+        database.checkpointAndTruncateWal()
     }
 
     override suspend fun deleteAll() {
         tripDao.deleteAllTrips()
+        database.checkpointAndTruncateWal()
     }
 
     override suspend fun getAllTrips(): List<TripRecord> =
         tripDao.allTripsWithEvents().map { it.toRecord() }
 
     override suspend fun deleteTripsEndingBefore(cutoffMs: Long): Int =
-        tripDao.deleteTripsEndingBefore(cutoffMs)
+        tripDao.deleteTripsEndingBefore(cutoffMs).also { removed ->
+            if (removed > 0) database.checkpointAndTruncateWal()
+        }
 
     private fun TripWithEvents.toRecord(): TripRecord = TripMappers.toRecord(trip, events)
 }
