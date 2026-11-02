@@ -14,6 +14,8 @@ import app.ecorota.core.model.VehicleProfile
 import app.ecorota.data.Entitlement
 import app.ecorota.di.AppContainer
 import app.ecorota.tracking.LiveTripState
+import app.ecorota.tracking.TrackingNotice
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -30,6 +32,8 @@ data class HomeUiState(
     val lastTrip: TripRecord? = null,
     val lifetime: LifetimeTripStats? = null,
     val tips: List<SelectedTip> = emptyList(),
+    val activeVehicle: VehicleProfile? = null,
+    val vehicles: List<VehicleProfile> = emptyList(),
     val currency: String = VehicleProfile.DEFAULT_CURRENCY,
     val speedUnit: SpeedUnit = SpeedUnit.KILOMETERS_PER_HOUR,
     val isPremium: Boolean = false,
@@ -42,6 +46,10 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
 
     private val lastTrip = MutableStateFlow<TripRecord?>(null)
     private val busy = MutableStateFlow(false)
+
+    val notices: Flow<TrackingNotice> = container.trackingController.notices
+
+    fun consumeNotice() = container.trackingController.consumeNotice()
 
     init {
         viewModelScope.launch {
@@ -56,13 +64,20 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
         }
     }
 
-    private val homeExtras = combine(
+    private val vehicleSelection = combine(
         container.vehicleRepository.observeDefaultVehicle(),
+        container.vehicleRepository.observeVehicles(),
+    ) { defaultVehicle, allVehicles ->
+        (defaultVehicle ?: allVehicles.firstOrNull()) to allVehicles
+    }
+
+    private val homeExtras = combine(
+        vehicleSelection,
         container.entitlementRepository.entitlement,
         busy,
         container.tripRepository.observeLifetimeStats(),
-    ) { vehicle, entitlement, isBusy, lifetime ->
-        HomeExtras(vehicle, entitlement, isBusy, lifetime)
+    ) { (vehicle, vehicles), entitlement, isBusy, lifetime ->
+        HomeExtras(vehicle, vehicles, entitlement, isBusy, lifetime)
     }
 
     val state: StateFlow<HomeUiState> = combine(
@@ -78,6 +93,8 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
             lastTrip = trip,
             lifetime = extra.lifetime,
             tips = trip?.let { DrivingTips.forTrip(it.breakdown) }.orEmpty(),
+            activeVehicle = extra.vehicle,
+            vehicles = extra.vehicles,
             currency = live.fuel?.currency
                 ?: extra.vehicle?.currency
                 ?: settings.currency,
@@ -95,6 +112,7 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
 
     private data class HomeExtras(
         val vehicle: VehicleProfile?,
+        val vehicles: List<VehicleProfile>,
         val entitlement: Entitlement,
         val busy: Boolean,
         val lifetime: LifetimeTripStats,
@@ -115,6 +133,18 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
         viewModelScope.launch {
             container.trackingController.stopRecording()
             busy.value = false
+        }
+    }
+
+    fun selectVehicle(vehicleId: String) {
+        viewModelScope.launch {
+            runCatching {
+                container.vehicleRepository.setDefault(vehicleId)
+                val chosen = state.value.vehicles.firstOrNull { it.id == vehicleId }
+                if (chosen != null) {
+                    container.settingsRepository.update { it.copy(currency = chosen.currency) }
+                }
+            }
         }
     }
 

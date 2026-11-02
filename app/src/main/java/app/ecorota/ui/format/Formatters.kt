@@ -106,14 +106,35 @@ object Formatters {
     fun integer(value: Int, locale: Locale): String = String.format(locale, "%d", value)
 
     /**
-     * Parses user input that may use a comma or a dot as the decimal mark.
-     * Returns null for blank or non-numeric input; callers validate the range.
+     * Parses user input that may use a comma or a dot as the decimal mark,
+     * optionally with space or mixed grouping separators (e.g. "1.234,50" or
+     * "1,234.50"). Returns null for blank, ambiguous, or non-numeric input.
      */
     fun parseDecimal(raw: String): Double? {
-        val normalized = raw.trim()
+        val compact = raw.trim()
             .replace(" ", "")
-            .replace(',', '.')
-        if (normalized.isEmpty()) return null
+            .replace("\u00A0", "")
+            .replace("\u202F", "")
+        if (compact.isEmpty()) return null
+
+        val dotCount = compact.count { it == '.' }
+        val commaCount = compact.count { it == ',' }
+        val normalized = when {
+            dotCount > 0 && commaCount > 0 -> {
+                val lastDot = compact.lastIndexOf('.')
+                val lastComma = compact.lastIndexOf(',')
+                if (lastDot > lastComma) {
+                    if (dotCount > 1) return null
+                    compact.replace(",", "")
+                } else {
+                    if (commaCount > 1) return null
+                    compact.replace(".", "").replace(',', '.')
+                }
+            }
+            dotCount > 1 || commaCount > 1 -> return null
+            else -> compact.replace(',', '.')
+        }
+
         val value = normalized.toDoubleOrNull() ?: return null
         return if (value.isFinite()) value else null
     }

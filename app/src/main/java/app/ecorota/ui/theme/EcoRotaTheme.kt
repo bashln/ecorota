@@ -38,6 +38,11 @@ private val LightColors = lightColorScheme(
     onSurface = Color(0xFF191C18),
     surfaceVariant = Color(0xFFDEE5D9),
     onSurfaceVariant = Color(0xFF424940),
+    surfaceContainerLowest = Color(0xFFFFFFFF),
+    surfaceContainerLow = Color(0xFFF3F6EE),
+    surfaceContainer = Color(0xFFEDF1E8),
+    surfaceContainerHigh = Color(0xFFE7ECE2),
+    surfaceContainerHighest = Color(0xFFE1E6DC),
     outline = Color(0xFF72796F),
     outlineVariant = Color(0xFFC2C9BD),
     error = Color(0xFFBA1A1A),
@@ -65,6 +70,11 @@ private val DarkColors = darkColorScheme(
     onSurface = Color(0xFFE1E4DC),
     surfaceVariant = Color(0xFF424940),
     onSurfaceVariant = Color(0xFFC2C9BD),
+    surfaceContainerLowest = Color(0xFF0B0F0B),
+    surfaceContainerLow = Color(0xFF181D18),
+    surfaceContainer = Color(0xFF1C211C),
+    surfaceContainerHigh = Color(0xFF262C26),
+    surfaceContainerHighest = Color(0xFF313731),
     outline = Color(0xFF8C9388),
     outlineVariant = Color(0xFF424940),
     error = Color(0xFFFFB4AB),
@@ -84,24 +94,25 @@ data class EcoRotaExtraColors(
 )
 
 private val LightExtras = EcoRotaExtraColors(
-    excellent = Color(0xFF2E7D32),
-    good = Color(0xFF558B2F),
-    fair = Color(0xFF9A6400),
-    poor = Color(0xFFC75000),
-    bad = Color(0xFFB3261E),
+    excellent = Color(0xFF16611C),
+    good = Color(0xFF2F5C0E),
+    fair = Color(0xFF734700),
+    poor = Color(0xFF913500),
+    bad = Color(0xFF961912),
     warningSurface = Color(0xFFFFF3D6),
 )
 
 private val DarkExtras = EcoRotaExtraColors(
-    excellent = Color(0xFF7FD48A),
-    good = Color(0xFFB5D96B),
-    fair = Color(0xFFFFC46B),
-    poor = Color(0xFFFF9E6B),
-    bad = Color(0xFFFF8A80),
+    excellent = Color(0xFF88DC93),
+    good = Color(0xFFBAE070),
+    fair = Color(0xFFFFC875),
+    poor = Color(0xFFFFAF85),
+    bad = Color(0xFFFFA69E),
     warningSurface = Color(0xFF3A2F14),
 )
 
 private val LocalExtraColors = staticCompositionLocalOf { LightExtras }
+private val LocalIsDarkTheme = staticCompositionLocalOf { false }
 
 val EcoRotaTypography = Typography().copy(
     displayLarge = TextStyle(
@@ -153,6 +164,7 @@ fun EcoRotaTheme(
     val extras = if (dark) DarkExtras else LightExtras
     CompositionLocalProvider(
         LocalExtraColors provides extras,
+        LocalIsDarkTheme provides dark,
     ) {
         MaterialTheme(
             colorScheme = if (dark) DarkColors else LightColors,
@@ -165,6 +177,9 @@ fun EcoRotaTheme(
 val extraColors: EcoRotaExtraColors
     @Composable get() = LocalExtraColors.current
 
+val isEcoRotaDarkTheme: Boolean
+    @Composable get() = LocalIsDarkTheme.current
+
 /** Score bands. Thresholds are inclusive lower bounds. */
 enum class ScoreBand(val minScore: Int) {
     BAD(0),
@@ -175,8 +190,9 @@ enum class ScoreBand(val minScore: Int) {
     ;
 
     companion object {
-        fun from(score: Int?): ScoreBand? = score?.let { value ->
-            entries.last { value >= it.minScore }
+        fun from(score: Int?): ScoreBand? = score?.let { raw ->
+            val clamped = raw.coerceAtLeast(0)
+            entries.last { clamped >= it.minScore }
         }
     }
 }

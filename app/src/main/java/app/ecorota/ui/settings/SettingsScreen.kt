@@ -1,6 +1,9 @@
 package app.ecorota.ui.settings
 
 import android.app.Activity
+import android.text.format.Formatter
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -18,6 +21,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.DirectionsCar
+import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Lock
@@ -42,6 +46,7 @@ import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -61,6 +66,7 @@ import app.ecorota.core.model.SpeedUnit
 import app.ecorota.core.model.ThemeMode
 import app.ecorota.core.model.VehicleProfile
 import app.ecorota.core.scoring.ScoringConfig
+import app.ecorota.data.PremiumFeature
 import app.ecorota.data.PremiumSource
 import app.ecorota.di.AppContainer
 import app.ecorota.tracking.LiveTripState
@@ -77,6 +83,7 @@ import app.ecorota.ui.components.SwitchRow
 import app.ecorota.ui.format.Formatters
 import app.ecorota.ui.permissions.AppPermissionsState
 import app.ecorota.ui.permissions.openAppSettings
+import app.ecorota.ui.permissions.openLocationSettings
 import app.ecorota.ui.permissions.rememberAppPermissions
 import app.ecorota.ui.permissions.rememberAutoDetectionOptIn
 import app.ecorota.ui.util.findActivity
@@ -95,6 +102,7 @@ data class SettingsActions(
     val setAutoDetection: (Boolean) -> Unit,
     val setRetentionDays: (Int) -> Unit,
     val deleteAllTrips: () -> Unit,
+    val exportCsv: () -> Unit,
     val saveVehicle: (VehicleProfile, ConsumptionUnit) -> Unit,
     val deleteVehicle: (VehicleProfile) -> Unit,
     val setDefaultVehicle: (String) -> Unit,
@@ -132,6 +140,11 @@ fun SettingsRoute(container: AppContainer, onOpenPaywall: () -> Unit) {
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
         canInstallUpdates = container.updateController.canInstall(context)
     }
+    val csvLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument("text/csv"),
+    ) { uri ->
+        if (uri != null) viewModel.exportCsv(context.contentResolver, uri)
+    }
 
     val messageTexts = mapOf(
         SettingsMessage.PURCHASE_SUCCESS to stringResource(R.string.settings_msg_purchase_success),
@@ -152,6 +165,8 @@ fun SettingsRoute(container: AppContainer, onOpenPaywall: () -> Unit) {
         SettingsMessage.SAVE_FAILED to stringResource(R.string.settings_msg_save_failed),
         SettingsMessage.TIP_SUCCESS to stringResource(R.string.settings_msg_tip_success),
         SettingsMessage.TIP_FAILED to stringResource(R.string.settings_msg_tip_failed),
+        SettingsMessage.CSV_EXPORTED to stringResource(R.string.detail_csv_success),
+        SettingsMessage.EXPORT_FAILED to stringResource(R.string.detail_export_failed),
     )
 
     LaunchedEffect(viewModel) {
@@ -168,7 +183,10 @@ fun SettingsRoute(container: AppContainer, onOpenPaywall: () -> Unit) {
         setMapTileDownloads = viewModel::setMapTileDownloads,
         setAutoDetection = viewModel::setAutoDetectionEnabled,
         setRetentionDays = viewModel::setRetentionDays,
-        deleteAllTrips = viewModel::deleteAllTrips,
+        deleteAllTrips = { viewModel.deleteAllTrips(context.cacheDir) },
+        exportCsv = {
+            csvLauncher.launch(container.tripExporter.csvFileName(System.currentTimeMillis()))
+        },
         saveVehicle = viewModel::saveVehicle,
         deleteVehicle = viewModel::deleteVehicle,
         setDefaultVehicle = viewModel::setDefaultVehicle,
@@ -224,9 +242,13 @@ private fun SettingsScreen(
         return
     }
     val locale = LocalConfiguration.current.locales[0]
-    var editorRequest by remember { mutableStateOf<VehicleEditorRequest?>(null) }
-    var showMapConsentDialog by remember { mutableStateOf(false) }
-    var showDeleteTripsDialog by remember { mutableStateOf(false) }
+    var editingVehicleId by rememberSaveable { mutableStateOf<String?>(null) }
+    var isAddingVehicle by rememberSaveable { mutableStateOf(false) }
+    var deletingVehicleId by rememberSaveable { mutableStateOf<String?>(null) }
+    var pendingRetentionDays by rememberSaveable { mutableStateOf<Int?>(null) }
+    var showMapConsentDialog by rememberSaveable { mutableStateOf(false) }
+    var showDeleteTripsDialog by rememberSaveable { mutableStateOf(false) }
+    val defaultVehicle = state.vehicles.firstOrNull { it.isDefault } ?: state.vehicles.firstOrNull()
 
     LazyColumn(
         modifier = Modifier.fillMaxWidth(),
@@ -243,7 +265,15 @@ private fun SettingsScreen(
             VehicleSection(
                 state = state,
                 locale = locale,
-                onEdit = { vehicle, isNew -> editorRequest = VehicleEditorRequest(vehicle, isNew) },
+                onEdit = { vehicle ->
+                    isAddingVehicle = false
+                    editingVehicleId = vehicle.id
+                },
+                onAdd = {
+                    isAddingVehicle = true
+                    editingVehicleId = UUID.randomUUID().toString()
+                },
+                onDelete = { vehicle -> deletingVehicleId = vehicle.id },
                 actions = actions,
                 onOpenPaywall = onOpenPaywall,
             )
@@ -276,13 +306,29 @@ private fun SettingsScreen(
         item {
             DataSection(
                 retentionDays = state.settings.dataRetentionDays,
-                onRetentionDays = actions.setRetentionDays,
+                working = state.working,
+                onRetentionDays = { days ->
+                    val current = state.settings.dataRetentionDays
+                    if (days != 0 && (current == 0 || days < current)) {
+                        pendingRetentionDays = days
+                    } else {
+                        actions.setRetentionDays(days)
+                    }
+                },
+                onExportCsv = {
+                    if (state.entitlement.canUse(PremiumFeature.DATA_EXPORT)) {
+                        actions.exportCsv()
+                    } else {
+                        onOpenPaywall()
+                    }
+                },
                 onDeleteAll = { showDeleteTripsDialog = true },
             )
         }
         item {
             ScoringSection(
                 config = state.settings.scoringConfig,
+                speedUnit = state.settings.speedUnit,
                 onChange = actions.saveScoringConfig,
                 onReset = actions.resetScoringConfig,
                 locale = locale,
@@ -307,15 +353,103 @@ private fun SettingsScreen(
         item { Spacer(Modifier.height(8.dp)) }
     }
 
-    editorRequest?.let { request ->
-        VehicleEditorDialog(
-            initial = request.vehicle,
-            unit = state.settings.consumptionUnit,
-            isNew = request.isNew,
-            onDismiss = { editorRequest = null },
-            onSave = { vehicle, unit ->
-                actions.saveVehicle(vehicle, unit)
-                editorRequest = null
+    editingVehicleId?.let { vehicleId ->
+        val initial = if (isAddingVehicle) {
+            val base = defaultVehicle ?: VehicleProfile.default()
+            VehicleProfile(
+                id = vehicleId,
+                name = "",
+                consumptionLitersPer100Km = base.consumptionLitersPer100Km,
+                fuelPricePerLiter = base.fuelPricePerLiter,
+                currency = base.currency,
+                isDefault = state.vehicles.isEmpty(),
+            )
+        } else {
+            state.vehicles.firstOrNull { it.id == vehicleId }
+        }
+        if (initial == null) {
+            editingVehicleId = null
+        } else {
+            VehicleEditorDialog(
+                initial = initial,
+                unit = state.settings.consumptionUnit,
+                isNew = isAddingVehicle,
+                onDismiss = {
+                    editingVehicleId = null
+                    isAddingVehicle = false
+                },
+                onSave = { vehicle, unit ->
+                    actions.saveVehicle(vehicle, unit)
+                    editingVehicleId = null
+                    isAddingVehicle = false
+                },
+            )
+        }
+    }
+
+    deletingVehicleId?.let { vehicleId ->
+        val vehicle = state.vehicles.firstOrNull { it.id == vehicleId }
+        if (vehicle == null) {
+            deletingVehicleId = null
+        } else {
+            val name = vehicle.name.ifBlank {
+                stringResource(R.string.settings_vehicle_name_fallback)
+            }
+            AlertDialog(
+                onDismissRequest = { deletingVehicleId = null },
+                title = { Text(stringResource(R.string.settings_vehicle_delete_title, name)) },
+                text = { Text(stringResource(R.string.settings_vehicle_delete_body)) },
+                confirmButton = {
+                    TextButton(
+                        onClick = {
+                            deletingVehicleId = null
+                            actions.deleteVehicle(vehicle)
+                        },
+                    ) {
+                        Text(
+                            text = stringResource(R.string.settings_vehicle_delete),
+                            color = MaterialTheme.colorScheme.error,
+                        )
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { deletingVehicleId = null }) {
+                        Text(stringResource(R.string.common_cancel))
+                    }
+                },
+            )
+        }
+    }
+
+    pendingRetentionDays?.let { days ->
+        AlertDialog(
+            onDismissRequest = { pendingRetentionDays = null },
+            title = { Text(stringResource(R.string.settings_retention_confirm_title)) },
+            text = {
+                Text(
+                    stringResource(
+                        R.string.settings_retention_confirm_body,
+                        pluralStringResource(R.plurals.settings_retention_days, days, days),
+                    ),
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        pendingRetentionDays = null
+                        actions.setRetentionDays(days)
+                    },
+                ) {
+                    Text(
+                        text = stringResource(R.string.settings_retention_confirm_action),
+                        color = MaterialTheme.colorScheme.error,
+                    )
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { pendingRetentionDays = null }) {
+                    Text(stringResource(R.string.common_cancel))
+                }
             },
         )
     }
@@ -367,13 +501,13 @@ private fun SettingsScreen(
     }
 }
 
-private data class VehicleEditorRequest(val vehicle: VehicleProfile, val isNew: Boolean)
-
 @Composable
 private fun VehicleSection(
     state: SettingsUiState,
     locale: Locale,
-    onEdit: (VehicleProfile, Boolean) -> Unit,
+    onEdit: (VehicleProfile) -> Unit,
+    onAdd: () -> Unit,
+    onDelete: (VehicleProfile) -> Unit,
     actions: SettingsActions,
     onOpenPaywall: () -> Unit,
 ) {
@@ -399,8 +533,8 @@ private fun VehicleSection(
                 unit = state.settings.consumptionUnit,
                 locale = locale,
                 premium = state.entitlement.isPremium,
-                onEdit = { onEdit(vehicle, false) },
-                onDelete = { actions.deleteVehicle(vehicle) },
+                onEdit = { onEdit(vehicle) },
+                onDelete = { onDelete(vehicle) },
                 onSetDefault = { actions.setDefaultVehicle(vehicle.id) },
             )
         }
@@ -409,20 +543,7 @@ private fun VehicleSection(
                 title = stringResource(R.string.settings_vehicle_add),
                 description = stringResource(R.string.settings_vehicle_add_body),
                 icon = Icons.Filled.Add,
-                onClick = {
-                    val base = defaultVehicle ?: VehicleProfile.default()
-                    onEdit(
-                        VehicleProfile(
-                            id = UUID.randomUUID().toString(),
-                            name = "",
-                            consumptionLitersPer100Km = base.consumptionLitersPer100Km,
-                            fuelPricePerLiter = base.fuelPricePerLiter,
-                            currency = base.currency,
-                            isDefault = state.vehicles.isEmpty(),
-                        ),
-                        true,
-                    )
-                },
+                onClick = onAdd,
             )
         } else {
             Spacer(Modifier.height(8.dp))
@@ -483,10 +604,16 @@ private fun VehicleRow(
         )
         if (premium && !vehicle.isDefault) {
             Row {
-                TextButton(onClick = onSetDefault) {
+                TextButton(
+                    onClick = onSetDefault,
+                    modifier = Modifier.heightIn(min = 48.dp),
+                ) {
                     Text(stringResource(R.string.settings_vehicle_set_default))
                 }
-                TextButton(onClick = onDelete) {
+                TextButton(
+                    onClick = onDelete,
+                    modifier = Modifier.heightIn(min = 48.dp),
+                ) {
                     Text(stringResource(R.string.settings_vehicle_delete))
                 }
             }
@@ -519,6 +646,13 @@ private fun TrackingSection(
                 text = stringResource(R.string.settings_permission_needed),
                 actionLabel = stringResource(R.string.home_permission_action),
                 onAction = permissions.requestForegroundLocation,
+            )
+        } else if (state.settings.autoDetectionEnabled && !permissions.isLocationEnabled) {
+            Spacer(Modifier.height(8.dp))
+            NoticeBanner(
+                text = stringResource(R.string.settings_gps_off_needed),
+                actionLabel = stringResource(R.string.home_gps_off_action),
+                onAction = { openLocationSettings(context) },
             )
         } else if (state.settings.autoDetectionEnabled && !permissions.hasBackgroundLocation) {
             Spacer(Modifier.height(8.dp))
@@ -608,7 +742,9 @@ private fun AppearanceSection(
 @Composable
 private fun DataSection(
     retentionDays: Int,
+    working: Boolean,
     onRetentionDays: (Int) -> Unit,
+    onExportCsv: () -> Unit,
     onDeleteAll: () -> Unit,
 ) {
     val presets = listOf(0, 7, 30, 90, 365)
@@ -623,7 +759,7 @@ private fun DataSection(
                 rowPresets.forEach { days ->
                     FilterChip(
                         selected = retentionDays == days,
-                        onClick = { onRetentionDays(days) },
+                        onClick = { if (retentionDays != days) onRetentionDays(days) },
                         label = {
                             Text(
                                 if (days == 0) {
@@ -650,6 +786,22 @@ private fun DataSection(
         )
         Spacer(Modifier.height(16.dp))
         OutlinedButton(
+            onClick = onExportCsv,
+            enabled = !working,
+            modifier = Modifier
+                .fillMaxWidth()
+                .heightIn(min = 48.dp),
+        ) {
+            Icon(
+                imageVector = Icons.Filled.Download,
+                contentDescription = null,
+                modifier = Modifier.size(18.dp),
+            )
+            Spacer(Modifier.width(8.dp))
+            Text(stringResource(R.string.settings_export_csv))
+        }
+        Spacer(Modifier.height(8.dp))
+        OutlinedButton(
             onClick = onDeleteAll,
             colors = ButtonDefaults.outlinedButtonColors(
                 contentColor = MaterialTheme.colorScheme.error,
@@ -666,12 +818,14 @@ private fun DataSection(
 @Composable
 private fun ScoringSection(
     config: ScoringConfig,
+    speedUnit: SpeedUnit,
     onChange: (ScoringConfig) -> Unit,
     onReset: () -> Unit,
     locale: Locale,
 ) {
     var draft by remember(config) { mutableStateOf(config) }
     val defaults = ScoringConfig()
+    val speedLabel = Formatters.speedUnitLabel(speedUnit)
 
     SectionCard(title = stringResource(R.string.settings_scoring_title)) {
         Text(
@@ -743,14 +897,16 @@ private fun ScoringSection(
         ThresholdSlider(
             label = stringResource(R.string.settings_scoring_speed),
             valueText = stringResource(
-                R.string.settings_scoring_speed_value,
-                draft.overspeedThresholdKmh.roundToInt(),
+                R.string.settings_scoring_speed_value_unit,
+                Formatters.speedValue(draft.overspeedThresholdKmh, speedUnit).roundToInt(),
+                speedLabel,
             ),
             defaultText = stringResource(
                 R.string.settings_scoring_default,
                 stringResource(
-                    R.string.settings_scoring_speed_value,
-                    defaults.overspeedThresholdKmh.roundToInt(),
+                    R.string.settings_scoring_speed_value_unit,
+                    Formatters.speedValue(defaults.overspeedThresholdKmh, speedUnit).roundToInt(),
+                    speedLabel,
                 ),
             ),
             value = draft.overspeedThresholdKmh.toFloat(),
@@ -843,6 +999,7 @@ private fun UpdateSection(
     actions: SettingsActions,
 ) {
     if (!supported) return
+    val context = LocalContext.current
 
     SectionCard(title = stringResource(R.string.settings_updates_title)) {
         Text(
@@ -903,9 +1060,26 @@ private fun UpdateSection(
                 }
             }
             is UpdateState.Downloading -> Column {
-                Text(stringResource(R.string.settings_updates_downloading))
-                Spacer(Modifier.height(6.dp))
-                LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                val total = state.totalBytes
+                if (total != null && total > 0) {
+                    val downloaded = state.downloadedBytes.coerceIn(0L, total)
+                    Text(
+                        stringResource(
+                            R.string.settings_updates_downloading_progress,
+                            Formatter.formatShortFileSize(context, downloaded),
+                            Formatter.formatShortFileSize(context, total),
+                        ),
+                    )
+                    Spacer(Modifier.height(6.dp))
+                    LinearProgressIndicator(
+                        progress = { downloaded.toFloat() / total.toFloat() },
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                } else {
+                    Text(stringResource(R.string.settings_updates_downloading))
+                    Spacer(Modifier.height(6.dp))
+                    LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                }
             }
             is UpdateState.Ready -> Column {
                 Text(

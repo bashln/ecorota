@@ -6,6 +6,7 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -17,6 +18,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.text.style.TextAlign
@@ -49,7 +51,7 @@ fun SpeedGauge(
     val target = (speedKmh / maxKmh).coerceIn(0.0, 1.0).toFloat()
     val progress = remember { Animatable(0f) }
     val duration = motionMillis(900)
-    LaunchedEffect(target) {
+    LaunchedEffect(target, duration) {
         if (duration == 0) {
             progress.snapTo(target)
         } else {
@@ -57,20 +59,25 @@ fun SpeedGauge(
         }
     }
 
+    val fontScale = LocalDensity.current.fontScale
+    val effectiveDiameter = diameter * fontScale.coerceIn(1f, 1.2f)
+    val sizeRatio = (diameter.value / 260f).coerceIn(0.65f, 1.15f)
+    val fontDampener = (if (fontScale > 1.25f) 1.25f / fontScale else 1f) * sizeRatio
+
     val tickCount = 48
     val startAngle = 135f
     val sweep = 270f
-    val inactive = MaterialTheme.colorScheme.outlineVariant
+    val inactive = MaterialTheme.colorScheme.outline.copy(alpha = 0.80f)
     val active = MaterialTheme.colorScheme.primary
     val marker = MaterialTheme.colorScheme.onSurface
 
     Box(
         modifier = modifier
-            .size(diameter)
+            .size(effectiveDiameter)
             .clearAndSetSemantics { this.contentDescription = contentDescription },
         contentAlignment = Alignment.Center,
     ) {
-        Canvas(modifier = Modifier.size(diameter)) {
+        Canvas(modifier = Modifier.size(effectiveDiameter)) {
             val radius = size.minDimension / 2f
             drawCircle(
                 color = inactive.copy(alpha = 0.35f),
@@ -91,10 +98,7 @@ fun SpeedGauge(
                     x = center.x + cos(radians) * outer,
                     y = center.y + sin(radians) * outer,
                 )
-                val color = when {
-                    fraction <= progress.value -> active
-                    else -> inactive
-                }
+                val color = if (fraction <= progress.value) active else inactive
                 drawLine(
                     color = color,
                     start = start,
@@ -122,6 +126,7 @@ fun SpeedGauge(
             )
         }
         Column(
+            modifier = Modifier.padding(32.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center,
         ) {
@@ -130,15 +135,19 @@ fun SpeedGauge(
                     .roundToInt()
                     .toString(),
                 style = MaterialTheme.typography.displayLarge.copy(
-                    fontSize = 72.sp,
-                    lineHeight = 76.sp,
+                    fontSize = 72.sp * fontDampener,
+                    lineHeight = 76.sp * fontDampener,
                 ),
                 textAlign = TextAlign.Center,
+                maxLines = 1,
             )
             Text(
                 text = Formatters.speedUnitLabel(speedUnit),
-                style = MaterialTheme.typography.titleMedium,
+                style = MaterialTheme.typography.titleMedium.copy(
+                    fontSize = MaterialTheme.typography.titleMedium.fontSize * fontDampener,
+                ),
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
             )
         }
     }

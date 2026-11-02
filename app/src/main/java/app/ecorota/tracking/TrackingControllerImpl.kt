@@ -4,13 +4,16 @@ import android.Manifest
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.location.LocationManager
 import android.os.Build
 import android.util.Log
 import androidx.core.content.ContextCompat
+import androidx.core.location.LocationManagerCompat
 import app.ecorota.data.SettingsRepository
 import app.ecorota.data.TripRepository
 import app.ecorota.data.VehicleRepository
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withTimeoutOrNull
@@ -48,8 +51,16 @@ class TrackingControllerImpl(
 
     override val monitoring: StateFlow<Boolean> get() = TrackingStateHolder.monitoring
 
+    override val notices: Flow<TrackingNotice> get() = TrackingStateHolder.notices
+
+    override fun consumeNotice() = TrackingStateHolder.clearNotices()
+
     override suspend fun startRecording(manual: Boolean): Boolean {
         if (!canCheckLocationPermission(appContext)) return false
+        if (!isLocationEnabled(appContext)) {
+            if (manual) TrackingStateHolder.postNotice(TrackingNotice.LOCATION_DISABLED)
+            return false
+        }
         dispatch(TripTrackingService.ACTION_START_RECORDING, manual)
         // The service owns permission and foreground-service checks. Wait for it
         // to publish the recording state so the UI does not claim success when
@@ -74,7 +85,11 @@ class TrackingControllerImpl(
         }
         settingsRepository.update { it.copy(autoDetectionEnabled = enabled) }
         if (enabled) {
-            dispatch(TripTrackingService.ACTION_START_MONITOR)
+            if (isLocationEnabled(appContext)) {
+                dispatch(TripTrackingService.ACTION_START_MONITOR)
+            } else {
+                stopMonitoringOnly()
+            }
         } else {
             stopMonitoringOnly()
         }
@@ -83,7 +98,11 @@ class TrackingControllerImpl(
     override suspend fun refresh() {
         val enabled = settingsRepository.current().autoDetectionEnabled
         if (enabled && canRunAutoDetection(appContext)) {
-            dispatch(TripTrackingService.ACTION_START_MONITOR)
+            if (isLocationEnabled(appContext)) {
+                dispatch(TripTrackingService.ACTION_START_MONITOR)
+            } else {
+                stopMonitoringOnly()
+            }
             return
         }
         if (enabled) {
@@ -129,6 +148,11 @@ class TrackingControllerImpl(
                 context,
                 Manifest.permission.ACCESS_FINE_LOCATION,
             ) == PackageManager.PERMISSION_GRANTED
+
+        fun isLocationEnabled(context: Context): Boolean {
+            val manager = context.getSystemService(LocationManager::class.java) ?: return false
+            return LocationManagerCompat.isLocationEnabled(manager)
+        }
 
         /**
          * Auto-detection runs while the app is not visible, so the user must

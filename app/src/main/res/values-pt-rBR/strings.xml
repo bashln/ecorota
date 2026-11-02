@@ -29,6 +29,8 @@
     <!-- Location and auto-detection permissions -->
     <string name="location_permission_denied_title">Permissão de localização necessária</string>
     <string name="location_permission_denied_body">O EcoRota não consegue detectar nem gravar viagens sem acesso à localização. Você pode permitir nos ajustes do aplicativo.</string>
+    <string name="location_precise_needed_title">Localização precisa necessária</string>
+    <string name="location_precise_needed_body">A localização aproximada não consegue medir velocidade nem distância com precisão. Abra os ajustes do aplicativo, escolha Permissões, depois Localização, e ative Usar localização precisa.</string>
     <string name="auto_detection_background_title">Permitir localização o tempo todo?</string>
     <string name="auto_detection_background_disclosure">A detecção automática procura viagens enquanto o EcoRota está em segundo plano, para que uma viagem comece sem você abrir o aplicativo. A localização é solicitada a cada 30 segundos, aproximadamente, para detectar o início e o fim de um trajeto. Você pode desligar isso a qualquer momento nos Ajustes.</string>
     <string name="auto_detection_background_allow">Permitir o tempo todo</string>
@@ -43,7 +45,7 @@
     <string name="onboarding_intro_title">Transforme cada viagem em economia</string>
     <string name="onboarding_intro_body">O EcoRota grava suas viagens, dá uma nota de 0 a 100 e mostra o combustível que poderia ter ficado no tanque.</string>
     <string name="onboarding_intro_gauge_caption">Prévia do velocímetro</string>
-    <string name="onboarding_intro_gauge_description">Prévia do velocímetro</string>
+    <string name="onboarding_intro_gauge_description">Prévia do velocímetro mostrando %1$s</string>
     <string name="onboarding_speed_unit_title">Unidade de velocidade</string>
     <string name="speed_unit_kilometers_per_hour">km/h</string>
     <string name="speed_unit_miles_per_hour">mph</string>
@@ -103,8 +105,17 @@
     <string name="home_automatic_trip">Iniciada automaticamente</string>
     <string name="home_permission_banner">A localização está desligada. O EcoRota não consegue gravar uma viagem sem ela.</string>
     <string name="home_permission_action">Permitir localização</string>
+    <string name="home_gps_off_banner">O GPS do aparelho está desligado. Ative a localização para gravar viagens.</string>
+    <string name="home_gps_off_action">Ajustes de localização</string>
+    <string name="home_vehicle_active">Veículo: %1$s</string>
+    <string name="home_vehicle_select">Trocar</string>
     <string name="home_start_trip">Iniciar viagem</string>
     <string name="home_stop_trip">Encerrar viagem</string>
+    <string name="home_stop_confirm_title">Encerrar esta viagem?</string>
+    <string name="home_stop_confirm_body">O EcoRota vai encerrar a gravação e calcular a nota do trajeto.</string>
+    <string name="home_msg_gps_off">Ative a localização (GPS) do aparelho antes de iniciar uma viagem.</string>
+    <string name="home_msg_trip_too_short">Viagem descartada: trajetos menores que 200 m ou 1 minuto não são salvos.</string>
+    <string name="home_msg_trip_save_failed">Não foi possível salvar a viagem encerrada.</string>
     <string name="home_live_title">Esta viagem</string>
     <string name="home_live_distance">Distância</string>
     <string name="home_live_duration">Duração</string>
@@ -164,6 +175,7 @@
     <string name="history_total_average_score">Nota média</string>
     <string name="history_total_avoidable_cost">Custo evitável</string>
     <string name="history_avoidable_fuel">Combustível evitável</string>
+    <string name="history_mixed_currency_note">Os totais de custo somam apenas viagens em %1$s porque seu histórico tem mais de uma moeda.</string>
     <string name="history_trend_title">Últimos 7 dias</string>
     <string name="history_chart_legend_cost">Custo evitável</string>
     <string name="history_chart_legend_score">Nota média</string>
@@ -273,6 +285,8 @@
     <string name="settings_vehicle_default_badge">Padrão</string>
     <string name="settings_vehicle_set_default">Tornar padrão</string>
     <string name="settings_vehicle_delete">Apagar</string>
+    <string name="settings_vehicle_delete_title">Apagar %1$s?</string>
+    <string name="settings_vehicle_delete_body">As viagens anteriores mantêm o custo salvo, mas o cadastro deste veículo será removido.</string>
     <string name="settings_vehicle_add">Adicionar veículo</string>
     <string name="settings_vehicle_add_body">Cada veículo tem seu próprio consumo e preço do combustível.</string>
     <string name="settings_vehicle_add_locked">Adicionar outro veículo (Premium)</string>
@@ -285,6 +299,7 @@
     <string name="settings_keep_screen_on_body">A tela permanece acesa enquanto uma viagem está sendo gravada.</string>
     <string name="settings_permission_needed">Viagens automáticas precisam da permissão de localização.</string>
     <string name="settings_background_missing">A localização em segundo plano não está permitida. As viagens automáticas só começam com o EcoRota aberto.</string>
+    <string name="settings_gps_off_needed">O GPS do aparelho está desligado. As viagens automáticas voltam a funcionar quando você religar.</string>
     <string name="settings_map_title">Tiles de mapa</string>
     <string name="settings_map_consent_title">Baixar tiles de mapa</string>
     <string name="settings_map_consent_body">Quando ativado, o EcoRota acessa servidores do OpenStreetMap para baixar tiles de mapa. Desligado por padrão. Viagens, notas e exportações ficam neste aparelho.</string>
@@ -304,6 +319,7 @@
     <string name="settings_updates_available">A versão %1$s está disponível.</string>
     <string name="settings_updates_download">Baixar atualização</string>
     <string name="settings_updates_downloading">Baixando e verificando…</string>
+    <string name="settings_updates_downloading_progress">Baixando e verificando (%1$s / %2$s)…</string>
     <string name="settings_updates_ready">Atualização baixada e verificada. Ela tem a mesma assinatura desta versão.</string>
     <string name="settings_updates_install">Instalar atualização</string>
     <string name="settings_updates_permission_missing">O Android precisa de permissão para instalar atualizações pelo EcoRota.</string>
@@ -322,15 +338,19 @@
     <string name="settings_data_title">Dados</string>
     <string name="settings_retention_title">Manter viagens por</string>
     <string name="settings_retention_forever">Para sempre</string>
-    <string name="settings_retention_body">A manutenção diária remove viagens mais antigas que o período escolhido. Manter para sempre é o padrão.</string>
+    <string name="settings_retention_body">Viagens mais antigas que o período escolhido são removidas imediatamente e pela manutenção diária. Manter para sempre é o padrão.</string>
+    <string name="settings_retention_confirm_title">Reduzir o tempo de retenção?</string>
+    <string name="settings_retention_confirm_body">Viagens com mais de %1$s serão apagadas permanentemente agora.</string>
+    <string name="settings_retention_confirm_action">Aplicar e apagar antigas</string>
     <plurals name="settings_retention_days">
         <item quantity="one">%d dia</item>
         <item quantity="many">%d dias</item>
         <item quantity="other">%d dias</item>
     </plurals>
+    <string name="settings_export_csv">Exportar todas as viagens em CSV</string>
     <string name="settings_delete_all">Apagar todas as viagens</string>
     <string name="settings_delete_all_title">Apagar todas as viagens?</string>
-    <string name="settings_delete_all_body">Todas as viagens, rotas e eventos salvos neste aparelho serão removidos. Não é possível desfazer.</string>
+    <string name="settings_delete_all_body">Todas as viagens, rotas, eventos e tiles de mapa em cache neste aparelho serão removidos. Não é possível desfazer.</string>
     <string name="settings_delete_all_confirm">Apagar tudo</string>
     <string name="settings_scoring_title">Limites da pontuação</string>
     <string name="settings_scoring_body">As mudanças valem apenas para novas viagens. Viagens já salvas mantêm a nota que receberam.</string>
@@ -340,7 +360,7 @@
     <string name="settings_scoring_speed">Limite de velocidade eficiente</string>
     <string name="settings_scoring_idle">Tempo mínimo parado</string>
     <string name="settings_scoring_mps2">%1$s m/s²</string>
-    <string name="settings_scoring_speed_value">%1$d km/h</string>
+    <string name="settings_scoring_speed_value_unit">%1$d %2$s</string>
     <string name="settings_scoring_idle_value">%1$d s</string>
     <string name="settings_scoring_default">Padrão %1$s</string>
     <string name="settings_scoring_reset">Restaurar padrões</string>

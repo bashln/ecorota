@@ -23,6 +23,8 @@ data class HistoryDay(
     val epochDay: Long,
     val trips: List<TripListItem>,
     val totals: DailyTripTotals,
+    val displayCost: Double,
+    val displayCurrency: String,
 )
 
 data class TrendPoint(
@@ -42,6 +44,7 @@ data class HistoryUiState(
     val worstDay: TrendPoint? = null,
     val isPremium: Boolean = false,
     val currency: String = VehicleProfile.DEFAULT_CURRENCY,
+    val hasMixedCurrencies: Boolean = false,
 )
 
 class HistoryViewModel(container: AppContainer) : ViewModel() {
@@ -70,6 +73,14 @@ class HistoryViewModel(container: AppContainer) : ViewModel() {
         val zone = ZoneId.systemDefault()
         val offsetMinutes = zone.rules.getOffset(Instant.now()).totalSeconds / 60
         val sortedTrips = tripList.sortedByDescending { it.startedAtMs }
+        val distinctCurrencies = sortedTrips.map { it.currency }.distinct()
+        val activeCurrency = when {
+            sortedTrips.isEmpty() -> settingsCurrency
+            settingsCurrency in distinctCurrencies -> settingsCurrency
+            else -> sortedTrips.first().currency
+        }
+        val hasMixedCurrencies = distinctCurrencies.size > 1
+
         val dailyTotals = TripStatistics.byLocalDay(sortedTrips, offsetMinutes)
             .associateBy { it.epochDay }
         val tripsByDay = sortedTrips.groupBy { trip ->
@@ -79,7 +90,21 @@ class HistoryViewModel(container: AppContainer) : ViewModel() {
             .sortedByDescending { it.key }
             .mapNotNull { (epochDay, dayTrips) ->
                 dailyTotals[epochDay]?.let { totals ->
-                    HistoryDay(epochDay = epochDay, trips = dayTrips, totals = totals)
+                    val dayCurrencies = dayTrips.map { it.currency }.distinct()
+                    val singleDayCurrency = dayCurrencies.singleOrNull()
+                    val displayCurrency = singleDayCurrency ?: activeCurrency
+                    val displayCost = if (singleDayCurrency != null) {
+                        totals.avoidableCost
+                    } else {
+                        dayTrips.filter { it.currency == activeCurrency }.sumOf { it.avoidableCost }
+                    }
+                    HistoryDay(
+                        epochDay = epochDay,
+                        trips = dayTrips,
+                        totals = totals,
+                        displayCost = displayCost,
+                        displayCurrency = displayCurrency,
+                    )
                 }
             }
 
@@ -87,25 +112,40 @@ class HistoryViewModel(container: AppContainer) : ViewModel() {
         val trend = (6 downTo 0).map { daysAgo ->
             val epochDay = today - daysAgo
             val totals = dailyTotals[epochDay]
+            val dayCurrencyCost = tripsByDay[epochDay]
+                ?.filter { it.currency == activeCurrency }
+                ?.sumOf { it.avoidableCost }
+                ?: 0.0
             TrendPoint(
                 epochDay = epochDay,
-                avoidableCost = totals?.avoidableCost ?: 0.0,
+                avoidableCost = if (hasMixedCurrencies) dayCurrencyCost else (totals?.avoidableCost ?: 0.0),
                 averageScore = totals?.averageScore,
                 tripCount = totals?.tripCount ?: 0,
             )
         }
         val scoredDays = trend.filter { it.averageScore != null && it.tripCount > 0 }
+        val rawTotals = TripStatistics.totals(sortedTrips)
+        val currencyFilteredTotals = if (hasMixedCurrencies && rawTotals != null) {
+            rawTotals.copy(
+                avoidableCost = sortedTrips
+                    .filter { it.currency == activeCurrency }
+                    .sumOf { it.avoidableCost },
+            )
+        } else {
+            rawTotals
+        }
 
         return HistoryUiState(
             loading = false,
             trips = sortedTrips,
-            totals = TripStatistics.totals(sortedTrips),
+            totals = currencyFilteredTotals,
             days = days,
             trend = trend,
             bestDay = if (isPremium) scoredDays.maxByOrNull { it.averageScore ?: 0.0 } else null,
             worstDay = if (isPremium) scoredDays.minByOrNull { it.averageScore ?: 0.0 } else null,
             isPremium = isPremium,
-            currency = sortedTrips.firstOrNull()?.currency ?: settingsCurrency,
+            currency = activeCurrency,
+            hasMixedCurrencies = hasMixedCurrencies,
         )
     }
 

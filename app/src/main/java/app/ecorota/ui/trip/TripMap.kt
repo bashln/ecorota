@@ -1,7 +1,10 @@
 package app.ecorota.ui.trip
 
+import android.annotation.SuppressLint
 import android.content.Context
+import android.graphics.Color
 import android.text.format.DateFormat
+import android.view.MotionEvent
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.remember
@@ -18,6 +21,11 @@ import app.ecorota.R
 import app.ecorota.core.model.DrivingEvent
 import app.ecorota.core.model.GeoPoint as EventGeoPoint
 import app.ecorota.core.model.RoutePoint
+import app.ecorota.ui.components.isReducedMotion
+import java.util.Date
+import kotlin.math.abs
+import kotlin.math.max
+import kotlin.math.roundToInt
 import org.osmdroid.config.Configuration
 import org.osmdroid.tileprovider.tilesource.TileSourceFactory
 import org.osmdroid.util.BoundingBox
@@ -25,9 +33,7 @@ import org.osmdroid.util.GeoPoint
 import org.osmdroid.views.MapView
 import org.osmdroid.views.overlay.Marker
 import org.osmdroid.views.overlay.Polyline
-import java.util.Date
-import kotlin.math.abs
-import kotlin.math.max
+import org.osmdroid.views.overlay.TilesOverlay
 
 /**
  * Owns the single [MapView] of a trip screen.
@@ -46,7 +52,9 @@ class TripMapHolder {
     internal var eventMarkers: Map<String, Marker> = emptyMap()
     internal var appliedSelectedEventId: String? = null
     internal var appliedTiles: Boolean? = null
-    internal var appliedInitialFocusKey: Pair<List<RoutePoint>, Int>? = null
+    internal var appliedDark: Boolean? = null
+    internal var appliedFocusRoute: List<RoutePoint>? = null
+    internal var appliedResetFocusKey: Int? = null
     internal var hasAppliedInitialFocus = false
     private var resumed = false
 
@@ -73,7 +81,9 @@ class TripMapHolder {
         eventMarkers = emptyMap()
         appliedSelectedEventId = null
         appliedTiles = null
-        appliedInitialFocusKey = null
+        appliedDark = null
+        appliedFocusRoute = null
+        appliedResetFocusKey = null
         hasAppliedInitialFocus = false
     }
 }
@@ -95,6 +105,7 @@ fun TripMap(
     contentDescription: String,
     holder: TripMapHolder,
     modifier: Modifier = Modifier,
+    isDark: Boolean = false,
 ) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -135,6 +146,28 @@ fun TripMap(
             mapView
         },
         update = { mapView ->
+            if (holder.appliedDark != isDark) {
+                val tilesOverlay = mapView.overlayManager.tilesOverlay
+                val polylineColor = if (isDark) {
+                    Color.rgb(129, 199, 132)
+                } else {
+                    ContextCompat.getColor(context, R.color.brand_green)
+                }
+                if (isDark) {
+                    tilesOverlay.setColorFilter(TilesOverlay.INVERT_COLORS)
+                    tilesOverlay.loadingBackgroundColor = Color.rgb(22, 26, 23)
+                    tilesOverlay.loadingLineColor = Color.rgb(44, 52, 46)
+                } else {
+                    tilesOverlay.setColorFilter(null)
+                    tilesOverlay.loadingBackgroundColor = Color.rgb(237, 240, 237)
+                    tilesOverlay.loadingLineColor = Color.rgb(211, 217, 211)
+                }
+                mapView.overlays.filterIsInstance<Polyline>().forEach { polyline ->
+                    polyline.outlinePaint.color = polylineColor
+                }
+                holder.appliedDark = isDark
+                mapView.invalidate()
+            }
             if (holder.appliedTiles != allowTileDownloads) {
                 val enablingTiles = allowTileDownloads && holder.appliedTiles == false
                 mapView.setUseDataConnection(allowTileDownloads)
@@ -155,10 +188,15 @@ fun TripMap(
                 holder.appliedEvents = null
                 holder.eventMarkers = emptyMap()
                 if (routePoints.isNotEmpty()) {
+                    val density = context.resources.displayMetrics.density
                     val polyline = Polyline(mapView).apply {
                         setPoints(routePoints)
-                        outlinePaint.color = ContextCompat.getColor(context, R.color.brand_green)
-                        outlinePaint.strokeWidth = 6f
+                        outlinePaint.color = if (isDark) {
+                            Color.rgb(129, 199, 132)
+                        } else {
+                            ContextCompat.getColor(context, R.color.brand_green)
+                        }
+                        outlinePaint.strokeWidth = 4f * density
                     }
                     mapView.overlays.add(polyline)
                 }
@@ -180,9 +218,9 @@ fun TripMap(
                     mapView.overlays.add(marker)
                 }
             }
-            val focusKey = route to resetFocusKey
-            if (holder.appliedInitialFocusKey != focusKey) {
-                holder.appliedInitialFocusKey = focusKey
+            if (holder.appliedFocusRoute !== route || holder.appliedResetFocusKey != resetFocusKey) {
+                holder.appliedFocusRoute = route
+                holder.appliedResetFocusKey = resetFocusKey
                 mapView.post {
                     focusRoute(
                         mapView,
@@ -193,7 +231,11 @@ fun TripMap(
                     holder.hasAppliedInitialFocus = true
                     selectedMapLocation(holder.appliedEvents.orEmpty(), holder.appliedSelectedEventId)
                         ?.let { location ->
-                            focusEvent(mapView, GeoPoint(location.latitude, location.longitude))
+                            focusEvent(
+                                mapView = mapView,
+                                point = GeoPoint(location.latitude, location.longitude),
+                                reducedMotion = context.isReducedMotion(),
+                            )
                             holder.eventMarkers[holder.appliedSelectedEventId]?.showInfoWindow()
                         }
                 }
@@ -203,7 +245,11 @@ fun TripMap(
                 holder.appliedSelectedEventId = selectedEventId
                 if (holder.hasAppliedInitialFocus) {
                     selectedPoint?.let {
-                        focusEvent(mapView, it)
+                        focusEvent(
+                            mapView = mapView,
+                            point = it,
+                            reducedMotion = context.isReducedMotion(),
+                        )
                         holder.eventMarkers[selectedEventId]?.showInfoWindow()
                     }
                 }
@@ -216,9 +262,13 @@ fun TripMap(
 internal fun selectedMapLocation(events: List<DrivingEvent>, eventId: String?): EventGeoPoint? =
     events.firstOrNull { it.id == eventId }?.location
 
-private fun focusEvent(mapView: MapView, point: GeoPoint) {
+private fun focusEvent(mapView: MapView, point: GeoPoint, reducedMotion: Boolean) {
     mapView.controller.setZoom(max(mapView.zoomLevelDouble, 17.0))
-    mapView.controller.animateTo(point)
+    if (reducedMotion) {
+        mapView.controller.setCenter(point)
+    } else {
+        mapView.controller.animateTo(point)
+    }
 }
 
 private fun eventMarker(
@@ -234,6 +284,7 @@ private fun eventMarker(
     setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_CENTER)
 }
 
+@SuppressLint("ClickableViewAccessibility")
 private fun createMapView(
     context: Context,
     holder: TripMapHolder,
@@ -252,6 +303,17 @@ private fun createMapView(
         setUseDataConnection(allowTileDownloads)
         minZoomLevel = 3.0
         maxZoomLevel = 20.0
+        setOnTouchListener { view, event ->
+            when (event.actionMasked) {
+                MotionEvent.ACTION_DOWN,
+                MotionEvent.ACTION_MOVE,
+                -> view.parent?.requestDisallowInterceptTouchEvent(true)
+                MotionEvent.ACTION_UP,
+                MotionEvent.ACTION_CANCEL,
+                -> view.parent?.requestDisallowInterceptTouchEvent(false)
+            }
+            false
+        }
         holder.mapView = this
     }
 }
@@ -282,9 +344,10 @@ private fun focusRoute(mapView: MapView, points: List<GeoPoint>) {
         mapView.controller.setCenter(GeoPoint(centered.latitude, centered.longitude))
         return
     }
+    val paddingPx = (32f * mapView.resources.displayMetrics.density).roundToInt()
     mapView.zoomToBoundingBox(
         BoundingBox(north, east, south, west),
         false,
-        96,
+        paddingPx,
     )
 }

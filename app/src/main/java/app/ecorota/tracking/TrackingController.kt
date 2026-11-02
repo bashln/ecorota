@@ -3,7 +3,15 @@ package app.ecorota.tracking
 import app.ecorota.core.model.FuelEstimate
 import app.ecorota.core.model.GeoPoint
 import app.ecorota.core.model.ScoreBreakdown
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.emptyFlow
+
+enum class TrackingNotice {
+    LOCATION_DISABLED,
+    SHORT_TRIP_DISCARDED,
+    SAVE_FAILED,
+}
 
 data class LiveTripState(
     val recording: Boolean = false,
@@ -37,7 +45,14 @@ interface TrackingController {
     /** True while the low-power auto-detection service is listening. */
     val monitoring: StateFlow<Boolean>
 
-    /** Returns false when location permission is missing. */
+    /** Transient user-visible notices such as GPS disabled or short-trip discard. */
+    val notices: Flow<TrackingNotice>
+        get() = emptyFlow()
+
+    /** Marks the replayed notice as shown so it is not shown again. */
+    fun consumeNotice() = Unit
+
+    /** Returns false when location permission is missing or GPS is disabled. */
     suspend fun startRecording(manual: Boolean = true): Boolean
 
     suspend fun stopRecording(): Boolean

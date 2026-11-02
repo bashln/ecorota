@@ -220,6 +220,12 @@ class TripTrackingService : Service() {
             stopForegroundAndSelf()
             return
         }
+        if (!locationEnabled()) {
+            Log.w(TAG, "Recording skipped: location is turned off")
+            if (manual) TrackingStateHolder.postNotice(TrackingNotice.LOCATION_DISABLED)
+            stopForegroundAndSelf()
+            return
+        }
         val deps = TrackingGraph.get()
         if (deps == null) {
             Log.e(TAG, "Cannot record: repositories are not installed")
@@ -296,15 +302,20 @@ class TripTrackingService : Service() {
         trackingStateIsIdle()
 
         val deps = TrackingGraph.get()
-        if (analysis == null || deps == null) {
+        if (deps == null) {
             afterTripFinished(resumeMonitoring)
             return
         }
-        if (TripRecordingPolicy.shouldDiscard(analysis.distanceMeters, analysis.durationMs)) {
+        if (analysis == null ||
+            TripRecordingPolicy.shouldDiscard(analysis.distanceMeters, analysis.durationMs)
+        ) {
             Log.i(
                 TAG,
-                "Discarding short trip: ${analysis.distanceMeters} m in ${analysis.durationMs} ms",
+                "Discarding short trip: ${analysis?.distanceMeters ?: 0.0} m in ${analysis?.durationMs ?: 0L} ms",
             )
+            if (!wasAutomatic) {
+                TrackingStateHolder.postNotice(TrackingNotice.SHORT_TRIP_DISCARDED)
+            }
             afterTripFinished(resumeMonitoring)
             return
         }
@@ -326,6 +337,7 @@ class TripTrackingService : Service() {
                                     "${record.distanceMeters} m and ${record.events.size} events lost",
                                 it,
                             )
+                            TrackingStateHolder.postNotice(TrackingNotice.SAVE_FAILED)
                         }
                 }
             } finally {
