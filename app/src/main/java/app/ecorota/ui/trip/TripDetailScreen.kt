@@ -1,6 +1,5 @@
 package app.ecorota.ui.trip
 
-import android.content.Context
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
@@ -23,17 +22,18 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.RotateRight
+import androidx.compose.material.icons.automirrored.filled.TrendingDown
+import androidx.compose.material.icons.automirrored.filled.TrendingUp
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Map
-import androidx.compose.material.icons.automirrored.filled.RotateRight
 import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material.icons.filled.Timer
-import androidx.compose.material.icons.automirrored.filled.TrendingDown
-import androidx.compose.material.icons.automirrored.filled.TrendingUp
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
@@ -48,8 +48,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -59,6 +61,8 @@ import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -85,8 +89,8 @@ import app.ecorota.ui.format.DateFormats
 import app.ecorota.ui.format.Formatters
 import app.ecorota.ui.theme.ScoreBand
 import app.ecorota.ui.theme.color
+import app.ecorota.ui.theme.isEcoRotaDarkTheme
 import java.util.Locale
-import kotlin.math.roundToInt
 
 @Composable
 fun TripDetailRoute(
@@ -162,13 +166,13 @@ private fun TripDetailScreen(
     onDelete: () -> Unit,
 ) {
     val locale = LocalConfiguration.current.locales[0]
-    var showDeleteDialog by remember { mutableStateOf(false) }
-    var showMapConsentDialog by remember { mutableStateOf(false) }
+    var showDeleteDialog by rememberSaveable { mutableStateOf(false) }
+    var showMapConsentDialog by rememberSaveable { mutableStateOf(false) }
     // Scoped to the screen, not to the list item: scrolling the map out of view
     // must not rebuild it. Rebuilding a MapView on the main thread froze the UI.
     val mapHolder = remember { TripMapHolder() }
-    var selectedEventId by remember { mutableStateOf<String?>(null) }
-    var mapResetFocusKey by remember { mutableStateOf(0) }
+    var selectedEventId by rememberSaveable { mutableStateOf<String?>(null) }
+    var mapResetFocusKey by rememberSaveable { mutableIntStateOf(0) }
     DisposableEffect(mapHolder) {
         onDispose { mapHolder.dispose() }
     }
@@ -339,7 +343,6 @@ private fun TripDetailContent(
         }
         item {
             ActionsCard(
-                isPremium = state.isPremium,
                 canExport = state.canExport,
                 working = state.working,
                 onExportGpx = {
@@ -416,6 +419,7 @@ private fun MapCard(
     onResetMapFocus: () -> Unit,
     onRequestEnableTiles: () -> Unit,
 ) {
+    val isDark = isEcoRotaDarkTheme
     SectionCard(title = stringResource(R.string.detail_map_title)) {
         if (trip.route.isEmpty()) {
             Box(
@@ -461,13 +465,21 @@ private fun MapCard(
                     allowTileDownloads = allowMapTiles,
                     contentDescription = stringResource(R.string.detail_map_description),
                     holder = mapHolder,
+                    isDark = isDark,
                     modifier = Modifier.matchParentSize(),
                 )
-                TextButton(
+                FilledTonalButton(
                     onClick = onResetMapFocus,
-                    modifier = Modifier.align(Alignment.TopEnd).padding(4.dp),
+                    contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp),
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(8.dp)
+                        .heightIn(min = 48.dp),
                 ) {
-                    Text(stringResource(R.string.detail_map_reset_focus))
+                    Text(
+                        text = stringResource(R.string.detail_map_reset_focus),
+                        style = MaterialTheme.typography.labelLarge,
+                    )
                 }
                 if (!allowMapTiles) {
                     Surface(
@@ -796,6 +808,7 @@ private fun EventRow(
     selected: Boolean,
     onClick: () -> Unit,
 ) {
+    val clickable = event.location != null
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -804,7 +817,14 @@ private fun EventRow(
                 if (selected) MaterialTheme.colorScheme.secondaryContainer
                 else MaterialTheme.colorScheme.surface,
             )
-            .clickable(enabled = event.location != null, onClick = onClick)
+            .then(
+                if (clickable) {
+                    Modifier.semantics { this.selected = selected }
+                } else {
+                    Modifier
+                },
+            )
+            .clickable(enabled = clickable, onClick = onClick)
             .padding(8.dp),
         verticalAlignment = Alignment.Top,
     ) {
@@ -911,7 +931,6 @@ private fun EventSeverity.labelRes(): Int = when (this) {
 
 @Composable
 private fun ActionsCard(
-    isPremium: Boolean,
     canExport: Boolean,
     working: Boolean,
     onExportGpx: () -> Unit,

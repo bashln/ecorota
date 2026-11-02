@@ -1,5 +1,6 @@
 package app.ecorota.ui.format
 
+import android.text.format.DateFormat
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
@@ -12,8 +13,16 @@ object DateFormats {
 
     fun dayHeader(epochDay: Long, locale: Locale): String {
         val date = LocalDate.ofEpochDay(epochDay)
-        val formatted = date.format(DateTimeFormatter.ofPattern("EEEE, d MMMM", locale))
-        return formatted.replaceFirstChar { char ->
+        val pattern = bestPattern(locale, "EEEEMMMMd")
+        val formatter = when {
+            pattern != null -> DateTimeFormatter.ofPattern(pattern, locale)
+            locale.language.equals("pt", ignoreCase = true) ->
+                DateTimeFormatter.ofPattern("EEEE, d 'de' MMMM", locale)
+            locale.language.equals("en", ignoreCase = true) ->
+                DateTimeFormatter.ofPattern("EEEE, MMMM d", locale)
+            else -> DateTimeFormatter.ofLocalizedDate(FormatStyle.FULL).withLocale(locale)
+        }
+        return date.format(formatter).replaceFirstChar { char ->
             if (char.isLowerCase()) char.titlecase(locale) else char.toString()
         }
     }
@@ -25,9 +34,19 @@ object DateFormats {
                 if (char.isLowerCase()) char.titlecase(locale) else char.toString()
             }
 
-    fun monthDay(epochDay: Long, locale: Locale): String =
-        LocalDate.ofEpochDay(epochDay)
-            .format(DateTimeFormatter.ofPattern("d MMM", locale))
+    fun monthDay(epochDay: Long, locale: Locale): String {
+        val date = LocalDate.ofEpochDay(epochDay)
+        val pattern = bestPattern(locale, "MMMd")
+        val formatter = when {
+            pattern != null -> DateTimeFormatter.ofPattern(pattern, locale)
+            locale.language.equals("pt", ignoreCase = true) ->
+                DateTimeFormatter.ofPattern("d 'de' MMM", locale)
+            locale.language.equals("en", ignoreCase = true) ->
+                DateTimeFormatter.ofPattern("MMM d", locale)
+            else -> DateTimeFormatter.ofPattern("d MMM", locale)
+        }
+        return date.format(formatter)
+    }
 
     fun time(epochMillis: Long, locale: Locale): String =
         Instant.ofEpochMilli(epochMillis)
@@ -41,4 +60,9 @@ object DateFormats {
                 DateTimeFormatter.ofLocalizedDateTime(FormatStyle.MEDIUM, FormatStyle.SHORT)
                     .withLocale(locale),
             )
+
+    private fun bestPattern(locale: Locale, skeleton: String): String? =
+        runCatching { DateFormat.getBestDateTimePattern(locale, skeleton) }
+            .getOrNull()
+            ?.takeIf { it.isNotBlank() }
 }

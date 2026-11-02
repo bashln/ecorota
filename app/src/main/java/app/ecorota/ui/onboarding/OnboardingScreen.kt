@@ -59,7 +59,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.res.stringResource
+import androidx.activity.compose.BackHandler
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.KeyboardCapitalization
@@ -76,6 +78,7 @@ import app.ecorota.core.model.SpeedUnit
 import app.ecorota.di.AppContainer
 import app.ecorota.ui.components.SpeedGauge
 import app.ecorota.ui.components.SwitchRow
+import app.ecorota.ui.format.Formatters
 import app.ecorota.ui.permissions.AppPermissionsState
 import app.ecorota.ui.permissions.rememberAppPermissions
 import app.ecorota.ui.permissions.rememberAutoDetectionOptIn
@@ -134,6 +137,10 @@ private fun OnboardingScreen(
 ) {
     var page by rememberSaveable { mutableIntStateOf(PAGE_INTRO) }
     var safetyAccepted by rememberSaveable { mutableStateOf(false) }
+
+    BackHandler(enabled = page > PAGE_INTRO) {
+        page -= 1
+    }
 
     Surface(
         modifier = Modifier.fillMaxSize(),
@@ -206,7 +213,7 @@ private fun OnboardingScreen(
                     .padding(vertical = 16.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                if (page > PAGE_PRIVACY) {
+                if (page > PAGE_INTRO) {
                     TextButton(
                         onClick = { page -= 1 },
                         modifier = Modifier.heightIn(min = 48.dp),
@@ -274,6 +281,7 @@ private fun IntroPage(
     onSpeedUnitChange: (SpeedUnit) -> Unit,
 ) {
     val locale = LocalConfiguration.current.locales[0]
+    val previewSpeed = Formatters.speed(100.0, speedUnit, locale)
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -285,12 +293,16 @@ private fun IntroPage(
             speedKmh = 100.0,
             speedUnit = speedUnit,
             locale = locale,
-            contentDescription = stringResource(R.string.onboarding_intro_gauge_description),
+            contentDescription = stringResource(
+                R.string.onboarding_intro_gauge_description,
+                previewSpeed,
+            ),
         )
         Text(
             text = stringResource(R.string.onboarding_intro_gauge_caption),
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.clearAndSetSemantics {},
         )
         Spacer(Modifier.height(24.dp))
         Text(

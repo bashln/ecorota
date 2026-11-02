@@ -30,10 +30,10 @@ object PolylineCodec {
         var lat = 0
         var lon = 0
         while (index < encoded.length) {
-            val latResult = decodeValue(encoded, index)
+            val latResult = decodeValue(encoded, index) ?: break
             lat += latResult.first
             index = latResult.second
-            val lonResult = decodeValue(encoded, index)
+            val lonResult = decodeValue(encoded, index) ?: break
             lon += lonResult.first
             index = lonResult.second
             points += GeoPoint(lat / PRECISION, lon / PRECISION)
@@ -50,12 +50,14 @@ object PolylineCodec {
         out.append((v + 63).toChar())
     }
 
-    private fun decodeValue(encoded: String, start: Int): Pair<Int, Int> {
+    private fun decodeValue(encoded: String, start: Int): Pair<Int, Int>? {
         var index = start
         var shift = 0
         var result = 0
         while (true) {
+            if (index >= encoded.length || shift >= MAX_VARINT_SHIFT) return null
             val byte = encoded[index++].code - 63
+            if (byte < 0) return null
             result = result or ((byte and 0x1f) shl shift)
             shift += 5
             if (byte < 0x20) break
@@ -63,4 +65,6 @@ object PolylineCodec {
         val value = if ((result and 1) != 0) (result shr 1).inv() else result shr 1
         return value to index
     }
+
+    private const val MAX_VARINT_SHIFT = 35
 }

@@ -1,6 +1,8 @@
 package app.ecorota.ui.settings
 
 import android.app.Activity
+import android.content.ContentResolver
+import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
@@ -15,6 +17,9 @@ import app.ecorota.core.model.VehicleProfile
 import app.ecorota.core.scoring.ScoringConfig
 import app.ecorota.data.Entitlement
 import app.ecorota.di.AppContainer
+import app.ecorota.tracking.RetentionPolicy
+import java.io.File
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -23,6 +28,7 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 enum class SettingsMessage {
     PURCHASE_SUCCESS,
@@ -40,6 +46,8 @@ enum class SettingsMessage {
     SAVE_FAILED,
     TIP_SUCCESS,
     TIP_FAILED,
+    CSV_EXPORTED,
+    EXPORT_FAILED,
 }
 
 data class SettingsUiState(
@@ -98,8 +106,17 @@ class SettingsViewModel(private val container: AppContainer) : ViewModel() {
         it.copy(allowMapTileDownloads = enabled)
     }
 
-    fun setRetentionDays(days: Int) = updateSettings {
-        it.copy(dataRetentionDays = days.coerceIn(0, 3650))
+    fun setRetentionDays(days: Int) {
+        val clamped = days.coerceIn(0, 3650)
+        viewModelScope.launch {
+            val success = runCatching {
+                container.settingsRepository.update { it.copy(dataRetentionDays = clamped) }
+                RetentionPolicy.cutoffMs(System.currentTimeMillis(), clamped)?.let { cutoff ->
+                    container.tripRepository.deleteTripsEndingBefore(cutoff)
+                }
+            }.isSuccess
+            if (!success) messageChannel.send(SettingsMessage.SAVE_FAILED)
+        }
     }
 
     fun setAutoDetectionEnabled(enabled: Boolean) {
@@ -113,7 +130,11 @@ class SettingsViewModel(private val container: AppContainer) : ViewModel() {
             val result = runCatching {
                 container.vehicleRepository.upsert(vehicle)
                 container.settingsRepository.update { settings ->
-                    settings.copy(consumptionUnit = unit, currency = vehicle.currency)
+                    if (vehicle.isDefault) {
+                        settings.copy(consumptionUnit = unit, currency = vehicle.currency)
+                    } else {
+                        settings.copy(consumptionUnit = unit)
+                    }
                 }
             }
             messageChannel.send(
@@ -154,11 +175,37 @@ class SettingsViewModel(private val container: AppContainer) : ViewModel() {
         updateSettings { it.copy(scoringConfig = ScoringConfig()) }
     }
 
-    fun deleteAllTrips() {
+    fun deleteAllTrips(cacheDir: File? = null) {
         viewModelScope.launch {
-            val success = runCatching { container.tripRepository.deleteAll() }.isSuccess
+            val success = runCatching {
+                container.tripRepository.deleteAll()
+                if (cacheDir != null) {
+                    withContext(Dispatchers.IO) {
+                        File(cacheDir, "osmdroid/tiles").deleteRecursively()
+                    }
+                }
+            }.isSuccess
             messageChannel.send(
                 if (success) SettingsMessage.TRIPS_DELETED else SettingsMessage.TRIPS_DELETE_FAILED,
+            )
+        }
+    }
+
+    fun exportCsv(resolver: ContentResolver, uri: Uri) {
+        if (working.value) return
+        working.value = true
+        viewModelScope.launch {
+            val success = withContext(Dispatchers.IO) {
+                runCatching {
+                    val allTrips = container.tripRepository.getAllTrips()
+                    resolver.openOutputStream(uri, "wt")?.use { output ->
+                        container.tripExporter.writeCsv(allTrips, output)
+                    } ?: error("No output stream for $uri")
+                }.isSuccess
+            }
+            working.value = false
+            messageChannel.send(
+                if (success) SettingsMessage.CSV_EXPORTED else SettingsMessage.EXPORT_FAILED,
             )
         }
     }

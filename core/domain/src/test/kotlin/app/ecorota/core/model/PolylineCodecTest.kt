@@ -66,6 +66,16 @@ class PolylineCodecTest {
     }
 
     @Test
+    fun `malformed input stops decoding instead of throwing`() {
+        assertEquals(emptyList<GeoPoint>(), PolylineCodec.decode("="))
+    }
+
+    @Test
+    fun `an unterminated varint stops decoding`() {
+        assertEquals(emptyList<GeoPoint>(), PolylineCodec.decode("_".repeat(20)))
+    }
+
+    @Test
     fun `a longer route keeps every vertex distinct`() {
         val points = List(50) { index ->
             GeoPoint(latitude = -23.0 + index * 0.0001, longitude = -46.0 - index * 0.0002)

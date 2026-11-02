@@ -4,6 +4,7 @@ import android.Manifest
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.location.LocationManager
 import android.net.Uri
 import android.os.Build
 import android.provider.Settings
@@ -18,10 +19,12 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.core.content.ContextCompat
+import androidx.core.location.LocationManagerCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
 import app.ecorota.R
@@ -29,8 +32,10 @@ import app.ecorota.R
 @Stable
 data class AppPermissionsState(
     val hasFineLocation: Boolean,
+    val hasCoarseLocation: Boolean,
     val hasBackgroundLocation: Boolean,
     val hasNotifications: Boolean,
+    val isLocationEnabled: Boolean,
     val requestForegroundLocation: () -> Unit,
     val requestOnboardingAccess: () -> Unit,
 )
@@ -42,6 +47,9 @@ fun Context.hasPermission(permission: String): Boolean =
 fun Context.hasFineLocationPermission(): Boolean =
     hasPermission(Manifest.permission.ACCESS_FINE_LOCATION)
 
+fun Context.hasCoarseLocationPermission(): Boolean =
+    hasPermission(Manifest.permission.ACCESS_COARSE_LOCATION)
+
 fun Context.hasBackgroundLocationPermission(): Boolean =
     Build.VERSION.SDK_INT < Build.VERSION_CODES.Q ||
         hasPermission(Manifest.permission.ACCESS_BACKGROUND_LOCATION)
@@ -49,6 +57,11 @@ fun Context.hasBackgroundLocationPermission(): Boolean =
 fun Context.hasNotificationPermission(): Boolean =
     Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
         hasPermission(Manifest.permission.POST_NOTIFICATIONS)
+
+fun Context.isSystemLocationEnabled(): Boolean {
+    val manager = getSystemService(LocationManager::class.java) ?: return false
+    return LocationManagerCompat.isLocationEnabled(manager)
+}
 
 /**
  * Current permission state plus the launchers that change it. The state is
@@ -59,18 +72,79 @@ fun Context.hasNotificationPermission(): Boolean =
 fun rememberAppPermissions(): AppPermissionsState {
     val context = LocalContext.current
     var revision by remember { mutableIntStateOf(0) }
+    var showPreciseNeeded by rememberSaveable { mutableStateOf(false) }
+    var showLocationDenied by rememberSaveable { mutableStateOf(false) }
 
     val foreground = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions(),
-    ) { revision++ }
+    ) { result ->
+        revision++
+        if (Manifest.permission.ACCESS_FINE_LOCATION in result &&
+            result[Manifest.permission.ACCESS_FINE_LOCATION] != true
+        ) {
+            if (context.hasCoarseLocationPermission()) {
+                showPreciseNeeded = true
+            } else {
+                showLocationDenied = true
+            }
+        }
+    }
 
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { revision++ }
+
+    if (showPreciseNeeded) {
+        AlertDialog(
+            onDismissRequest = { showPreciseNeeded = false },
+            title = { Text(stringResource(R.string.location_precise_needed_title)) },
+            text = { Text(stringResource(R.string.location_precise_needed_body)) },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showPreciseNeeded = false
+                        openAppSettings(context)
+                    },
+                ) {
+                    Text(stringResource(R.string.common_open_settings))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showPreciseNeeded = false }) {
+                    Text(stringResource(R.string.common_close))
+                }
+            },
+        )
+    }
+
+    if (showLocationDenied) {
+        AlertDialog(
+            onDismissRequest = { showLocationDenied = false },
+            title = { Text(stringResource(R.string.location_permission_denied_title)) },
+            text = { Text(stringResource(R.string.location_permission_denied_body)) },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showLocationDenied = false
+                        openAppSettings(context)
+                    },
+                ) {
+                    Text(stringResource(R.string.common_open_settings))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showLocationDenied = false }) {
+                    Text(stringResource(R.string.common_close))
+                }
+            },
+        )
+    }
 
     return remember(revision, context) {
         AppPermissionsState(
             hasFineLocation = context.hasFineLocationPermission(),
+            hasCoarseLocation = context.hasCoarseLocationPermission(),
             hasBackgroundLocation = context.hasBackgroundLocationPermission(),
             hasNotifications = context.hasNotificationPermission(),
+            isLocationEnabled = context.isSystemLocationEnabled(),
             requestForegroundLocation = {
                 foreground.launch(
                     arrayOf(
@@ -98,7 +172,15 @@ fun openAppSettings(context: Context) {
         Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
         Uri.fromParts("package", context.packageName, null),
     ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-    context.startActivity(intent)
+    runCatching { context.startActivity(intent) }
+}
+
+fun openLocationSettings(context: Context) {
+    val intent = Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS)
+        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+    if (runCatching { context.startActivity(intent) }.isFailure) {
+        openAppSettings(context)
+    }
 }
 
 /**
@@ -107,14 +189,26 @@ fun openAppSettings(context: Context) {
  * Background location is only requested after the caller shows the disclosure
  * dialog below, which is an Android 10+ requirement and a privacy promise of
  * this app. On Android 11+ the system may answer without a dialog; in that case
- * the user gets instructions for "Allow all the time" instead of a dead switch.
+ * the user gets instructions for "Allow all the time" and returning with the
+ * grant automatically completes the opt-in.
  */
 @Composable
 fun rememberAutoDetectionOptIn(onEnable: () -> Unit): () -> Unit {
     val context = LocalContext.current
-    var showBackgroundDisclosure by remember { mutableStateOf(false) }
-    var showSettingsHint by remember { mutableStateOf(false) }
-    var showLocationDenied by remember { mutableStateOf(false) }
+    var showBackgroundDisclosure by rememberSaveable { mutableStateOf(false) }
+    var showSettingsHint by rememberSaveable { mutableStateOf(false) }
+    var showLocationDenied by rememberSaveable { mutableStateOf(false) }
+    var showPreciseNeeded by rememberSaveable { mutableStateOf(false) }
+    var waitingForBackgroundSettings by rememberSaveable { mutableStateOf(false) }
+
+    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
+        if (waitingForBackgroundSettings) {
+            waitingForBackgroundSettings = false
+            if (context.hasFineLocationPermission() && context.hasBackgroundLocationPermission()) {
+                onEnable()
+            }
+        }
+    }
 
     val backgroundLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission(),
@@ -132,7 +226,13 @@ fun rememberAutoDetectionOptIn(onEnable: () -> Unit): () -> Unit {
         ActivityResultContracts.RequestMultiplePermissions(),
     ) { result ->
         if (result[Manifest.permission.ACCESS_FINE_LOCATION] == true) {
-            showBackgroundDisclosure = true
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                showBackgroundDisclosure = true
+            } else {
+                onEnable()
+            }
+        } else if (context.hasCoarseLocationPermission()) {
+            showPreciseNeeded = true
         } else {
             showLocationDenied = true
         }
@@ -141,7 +241,11 @@ fun rememberAutoDetectionOptIn(onEnable: () -> Unit): () -> Unit {
     val requestEnable: () -> Unit = {
         if (context.hasFineLocationPermission()) {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                showBackgroundDisclosure = true
+                if (context.hasBackgroundLocationPermission()) {
+                    onEnable()
+                } else {
+                    showBackgroundDisclosure = true
+                }
             } else {
                 onEnable()
             }
@@ -199,6 +303,7 @@ fun rememberAutoDetectionOptIn(onEnable: () -> Unit): () -> Unit {
                 TextButton(
                     onClick = {
                         showSettingsHint = false
+                        waitingForBackgroundSettings = true
                         openAppSettings(context)
                     },
                 ) {
@@ -207,6 +312,29 @@ fun rememberAutoDetectionOptIn(onEnable: () -> Unit): () -> Unit {
             },
             dismissButton = {
                 TextButton(onClick = { showSettingsHint = false }) {
+                    Text(stringResource(R.string.common_close))
+                }
+            },
+        )
+    }
+
+    if (showPreciseNeeded) {
+        AlertDialog(
+            onDismissRequest = { showPreciseNeeded = false },
+            title = { Text(stringResource(R.string.location_precise_needed_title)) },
+            text = { Text(stringResource(R.string.location_precise_needed_body)) },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showPreciseNeeded = false
+                        openAppSettings(context)
+                    },
+                ) {
+                    Text(stringResource(R.string.common_open_settings))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showPreciseNeeded = false }) {
                     Text(stringResource(R.string.common_close))
                 }
             },

@@ -1,10 +1,12 @@
 package app.ecorota.ui.home
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
@@ -14,25 +16,38 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.DirectionsCar
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.Stop
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableLongStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -44,14 +59,15 @@ import app.ecorota.core.analysis.SelectedTip
 import app.ecorota.core.model.SpeedUnit
 import app.ecorota.core.model.TripRecord
 import app.ecorota.di.AppContainer
+import app.ecorota.tracking.TrackingNotice
 import app.ecorota.ui.components.EmptyState
 import app.ecorota.ui.components.KeyValueRow
 import app.ecorota.ui.components.LoadingState
 import app.ecorota.ui.components.NoticeBanner
 import app.ecorota.ui.components.ScoreBadge
 import app.ecorota.ui.components.ScoreRing
-import app.ecorota.ui.components.SectionCard
 import app.ecorota.ui.components.ScreenHeader
+import app.ecorota.ui.components.SectionCard
 import app.ecorota.ui.components.StatGrid
 import app.ecorota.ui.components.SwitchRow
 import app.ecorota.ui.components.scoreBandLabel
@@ -59,10 +75,13 @@ import app.ecorota.ui.components.tipText
 import app.ecorota.ui.format.DateFormats
 import app.ecorota.ui.format.Formatters
 import app.ecorota.ui.permissions.AppPermissionsState
+import app.ecorota.ui.permissions.openLocationSettings
 import app.ecorota.ui.permissions.rememberAppPermissions
 import app.ecorota.ui.permissions.rememberAutoDetectionOptIn
 import app.ecorota.update.UpdateState
 import java.util.Locale
+import kotlin.math.max
+import kotlinx.coroutines.delay
 
 @Composable
 fun HomeRoute(
@@ -76,19 +95,40 @@ fun HomeRoute(
     val state by viewModel.state.collectAsStateWithLifecycle()
     val updateState by container.updateController.state.collectAsStateWithLifecycle()
     val permissions = rememberAppPermissions()
+    val context = LocalContext.current
+    val snackbarHostState = remember { SnackbarHostState() }
     val requestAutoDetection = rememberAutoDetectionOptIn(
         onEnable = { viewModel.setAutoDetectionEnabled(true) },
     )
+
+    val gpsOffMsg = stringResource(R.string.home_msg_gps_off)
+    val shortTripMsg = stringResource(R.string.home_msg_trip_too_short)
+    val saveFailedMsg = stringResource(R.string.home_msg_trip_save_failed)
+
+    LaunchedEffect(viewModel, gpsOffMsg, shortTripMsg, saveFailedMsg) {
+        viewModel.notices.collect { notice ->
+            viewModel.consumeNotice()
+            val text = when (notice) {
+                TrackingNotice.LOCATION_DISABLED -> gpsOffMsg
+                TrackingNotice.SHORT_TRIP_DISCARDED -> shortTripMsg
+                TrackingNotice.SAVE_FAILED -> saveFailedMsg
+            }
+            snackbarHostState.showSnackbar(text)
+        }
+    }
 
     HomeScreen(
         state = state,
         permissions = permissions,
         updateState = updateState,
+        snackbarHostState = snackbarHostState,
         onStart = viewModel::startRecording,
         onStop = viewModel::stopRecording,
+        onSelectVehicle = viewModel::selectVehicle,
         onAutoDetectionChange = { enabled ->
             if (enabled) requestAutoDetection() else viewModel.setAutoDetectionEnabled(false)
         },
+        onOpenLocationSettings = { openLocationSettings(context) },
         onOpenTrip = onOpenTrip,
         onOpenHistory = onOpenHistory,
         onOpenPaywall = onOpenPaywall,
@@ -101,9 +141,12 @@ private fun HomeScreen(
     state: HomeUiState,
     permissions: AppPermissionsState,
     updateState: UpdateState,
+    snackbarHostState: SnackbarHostState,
     onStart: () -> Unit,
     onStop: () -> Unit,
+    onSelectVehicle: (String) -> Unit,
     onAutoDetectionChange: (Boolean) -> Unit,
+    onOpenLocationSettings: () -> Unit,
     onOpenTrip: (String) -> Unit,
     onOpenHistory: () -> Unit,
     onOpenPaywall: () -> Unit,
@@ -126,273 +169,401 @@ private fun HomeScreen(
         stringResource(R.string.home_score_semantics_empty)
     }
 
-    LazyColumn(
-        modifier = Modifier.fillMaxWidth(),
-        contentPadding = PaddingValues(horizontal = 20.dp, vertical = 16.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp),
-    ) {
-        item {
-            ScreenHeader(
-                title = stringResource(R.string.app_name),
-                subtitle = stringResource(R.string.home_subtitle),
-            )
-        }
+    var showStopConfirm by rememberSaveable { mutableStateOf(false) }
+    var showVehicleMenu by remember { mutableStateOf(false) }
 
-        if (!permissions.hasFineLocation) {
-            item {
-                NoticeBanner(
-                    text = stringResource(R.string.home_permission_banner),
-                    actionLabel = stringResource(R.string.home_permission_action),
-                    onAction = permissions.requestForegroundLocation,
-                    icon = Icons.Filled.LocationOn,
-                    containerColor = MaterialTheme.colorScheme.errorContainer,
-                    contentColor = MaterialTheme.colorScheme.onErrorContainer,
-                )
+    var nowMs by remember(live.recording, live.startedAtMs) {
+        mutableLongStateOf(System.currentTimeMillis())
+    }
+    LaunchedEffect(live.recording, live.startedAtMs) {
+        if (live.recording && live.startedAtMs != null) {
+            while (true) {
+                nowMs = System.currentTimeMillis()
+                delay(1_000L)
             }
         }
+    }
+    val displayDurationMs = if (live.recording && live.startedAtMs != null) {
+        max(live.durationMs, (nowMs - live.startedAtMs).coerceAtLeast(0L))
+    } else {
+        live.durationMs
+    }
 
-        val availableUpdate = when (updateState) {
-            is UpdateState.Available -> updateState.update
-            is UpdateState.Ready -> updateState.update
-            else -> null
-        }
-        if (availableUpdate != null) {
+    val activeVehicleName = state.activeVehicle?.name?.takeIf { it.isNotBlank() }
+        ?: stringResource(R.string.settings_vehicle_name_fallback)
+
+    Box(modifier = Modifier.fillMaxSize()) {
+        LazyColumn(
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(horizontal = 20.dp, vertical = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+        ) {
             item {
-                NoticeBanner(
-                    text = stringResource(
-                        R.string.home_update_available,
-                        availableUpdate.versionName,
-                    ),
-                    actionLabel = stringResource(R.string.home_update_action),
-                    onAction = onOpenSettings,
-                    icon = Icons.Filled.Refresh,
-                    containerColor = MaterialTheme.colorScheme.primaryContainer,
-                    contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                ScreenHeader(
+                    title = stringResource(R.string.app_name),
+                    subtitle = stringResource(R.string.home_subtitle),
                 )
             }
-        }
 
-        item {
-            SectionCard {
-                Column(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                ) {
-                    Text(
+            if (!permissions.hasFineLocation) {
+                item {
+                    NoticeBanner(
+                        text = stringResource(R.string.home_permission_banner),
+                        actionLabel = stringResource(R.string.home_permission_action),
+                        onAction = permissions.requestForegroundLocation,
+                        icon = Icons.Filled.LocationOn,
+                        containerColor = MaterialTheme.colorScheme.errorContainer,
+                        contentColor = MaterialTheme.colorScheme.onErrorContainer,
+                    )
+                }
+            } else if (!permissions.isLocationEnabled) {
+                item {
+                    NoticeBanner(
+                        text = stringResource(R.string.home_gps_off_banner),
+                        actionLabel = stringResource(R.string.home_gps_off_action),
+                        onAction = onOpenLocationSettings,
+                        icon = Icons.Filled.LocationOn,
+                        containerColor = MaterialTheme.colorScheme.errorContainer,
+                        contentColor = MaterialTheme.colorScheme.onErrorContainer,
+                    )
+                }
+            }
+
+            val availableUpdate = when (updateState) {
+                is UpdateState.Available -> updateState.update
+                is UpdateState.Ready -> updateState.update
+                else -> null
+            }
+            if (availableUpdate != null && !live.recording) {
+                item {
+                    NoticeBanner(
                         text = stringResource(
-                            when {
-                                live.recording -> R.string.home_score_label_current
-                                state.lastTrip != null -> R.string.home_score_label_last
-                                else -> R.string.home_score_label_none
-                            },
+                            R.string.home_update_available,
+                            availableUpdate.versionName,
                         ),
-                        style = MaterialTheme.typography.labelLarge,
-                        color = MaterialTheme.colorScheme.primary,
+                        actionLabel = stringResource(R.string.home_update_action),
+                        onAction = onOpenSettings,
+                        icon = Icons.Filled.Refresh,
+                        containerColor = MaterialTheme.colorScheme.primaryContainer,
+                        contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
                     )
-                    Spacer(Modifier.height(12.dp))
-                    ScoreRing(
-                        score = score,
-                        label = scoreLabel,
-                        contentDescription = scoreDescription,
-                    )
-                    if (live.recording && live.automatic) {
-                        Spacer(Modifier.height(12.dp))
+                }
+            }
+
+            item {
+                SectionCard {
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                    ) {
                         Text(
-                            text = stringResource(R.string.home_automatic_trip),
-                            style = MaterialTheme.typography.labelMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            text = stringResource(
+                                when {
+                                    live.recording -> R.string.home_score_label_current
+                                    state.lastTrip != null -> R.string.home_score_label_last
+                                    else -> R.string.home_score_label_none
+                                },
+                            ),
+                            style = MaterialTheme.typography.labelLarge,
+                            color = MaterialTheme.colorScheme.primary,
+                        )
+                        Spacer(Modifier.height(12.dp))
+                        ScoreRing(
+                            score = score,
+                            label = scoreLabel,
+                            contentDescription = scoreDescription,
+                        )
+                        if (live.recording) {
+                            Spacer(Modifier.height(12.dp))
+                            Text(
+                                text = stringResource(R.string.home_vehicle_active, activeVehicleName),
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                            if (live.automatic) {
+                                Spacer(Modifier.height(4.dp))
+                                Text(
+                                    text = stringResource(R.string.home_automatic_trip),
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+
+            if (live.recording) {
+                item {
+                    SectionCard {
+                        Text(
+                            text = stringResource(R.string.home_live_title),
+                            style = MaterialTheme.typography.titleMedium,
+                        )
+                        Spacer(Modifier.height(12.dp))
+                        StatGrid(
+                            items = listOf(
+                                stringResource(R.string.home_live_distance) to
+                                    Formatters.distance(live.distanceMeters, locale),
+                                stringResource(R.string.home_live_duration) to
+                                    Formatters.duration(displayDurationMs, locale),
+                                stringResource(R.string.home_live_speed) to
+                                    Formatters.speed(live.currentSpeedKmh, state.speedUnit, locale),
+                                stringResource(R.string.home_live_average_speed) to
+                                    Formatters.speed(live.averageSpeedKmh, state.speedUnit, locale),
+                                stringResource(R.string.home_live_events) to
+                                    Formatters.integer(live.eventCount, locale),
+                                stringResource(R.string.home_live_avoidable_cost) to
+                                    Formatters.money(
+                                        amount = live.fuel?.avoidableCost ?: 0.0,
+                                        currencyCode = state.currency,
+                                        locale = locale,
+                                    ),
+                            ),
+                        )
+                        Spacer(Modifier.height(16.dp))
+                        Button(
+                            onClick = { showStopConfirm = true },
+                            enabled = !state.busy,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .heightIn(min = 52.dp),
+                        ) {
+                            if (state.busy) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(18.dp),
+                                    strokeWidth = 2.dp,
+                                    color = MaterialTheme.colorScheme.onPrimary,
+                                )
+                            } else {
+                                Icon(
+                                    imageVector = Icons.Filled.Stop,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(20.dp),
+                                )
+                            }
+                            Spacer(Modifier.width(8.dp))
+                            Text(stringResource(R.string.home_stop_trip))
+                        }
+                    }
+                }
+            } else {
+                item {
+                    SectionCard {
+                        if (state.activeVehicle != null) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(bottom = 12.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Filled.DirectionsCar,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(20.dp),
+                                )
+                                Spacer(Modifier.width(8.dp))
+                                Text(
+                                    text = stringResource(
+                                        R.string.home_vehicle_active,
+                                        activeVehicleName,
+                                    ),
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    modifier = Modifier.weight(1f),
+                                )
+                                if (state.isPremium && state.vehicles.size > 1) {
+                                    Box {
+                                        TextButton(
+                                            onClick = { showVehicleMenu = true },
+                                            modifier = Modifier.heightIn(min = 48.dp),
+                                        ) {
+                                            Text(stringResource(R.string.home_vehicle_select))
+                                        }
+                                        DropdownMenu(
+                                            expanded = showVehicleMenu,
+                                            onDismissRequest = { showVehicleMenu = false },
+                                        ) {
+                                            state.vehicles.forEach { vehicle ->
+                                                val name = vehicle.name.ifBlank {
+                                                    stringResource(
+                                                        R.string.settings_vehicle_name_fallback,
+                                                    )
+                                                }
+                                                DropdownMenuItem(
+                                                    text = { Text(name) },
+                                                    onClick = {
+                                                        showVehicleMenu = false
+                                                        onSelectVehicle(vehicle.id)
+                                                    },
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        Button(
+                            onClick = {
+                                if (!permissions.hasFineLocation) {
+                                    permissions.requestForegroundLocation()
+                                } else {
+                                    onStart()
+                                }
+                            },
+                            enabled = !state.busy,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .heightIn(min = 56.dp),
+                        ) {
+                            if (state.busy) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(18.dp),
+                                    strokeWidth = 2.dp,
+                                    color = MaterialTheme.colorScheme.onPrimary,
+                                )
+                            } else {
+                                Icon(
+                                    imageVector = Icons.Filled.PlayArrow,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(22.dp),
+                                )
+                            }
+                            Spacer(Modifier.width(8.dp))
+                            Text(stringResource(R.string.home_start_trip))
+                        }
+                        Spacer(Modifier.height(8.dp))
+                        SwitchRow(
+                            title = stringResource(R.string.home_auto_detection_title),
+                            description = stringResource(R.string.home_auto_detection_body),
+                            checked = state.autoDetectionEnabled,
+                            onCheckedChange = onAutoDetectionChange,
+                            enabled = !live.recording,
                         )
                     }
                 }
-            }
-        }
 
-        if (live.recording) {
-            item {
-                SectionCard {
-                    Text(
-                        text = stringResource(R.string.home_live_title),
-                        style = MaterialTheme.typography.titleMedium,
-                    )
-                    Spacer(Modifier.height(12.dp))
-                    StatGrid(
-                        items = listOf(
-                            stringResource(R.string.home_live_distance) to
-                                Formatters.distance(live.distanceMeters, locale),
-                            stringResource(R.string.home_live_duration) to
-                                Formatters.duration(live.durationMs, locale),
-                            stringResource(R.string.home_live_speed) to
-                                Formatters.speed(live.currentSpeedKmh, state.speedUnit, locale),
-                            stringResource(R.string.home_live_average_speed) to
-                                Formatters.speed(live.averageSpeedKmh, state.speedUnit, locale),
-                            stringResource(R.string.home_live_events) to
-                                Formatters.integer(live.eventCount, locale),
-                            stringResource(R.string.home_live_avoidable_cost) to
-                                Formatters.money(
-                                    amount = live.fuel?.avoidableCost ?: 0.0,
-                                    currencyCode = state.currency,
-                                    locale = locale,
-                                ),
-                        ),
-                    )
-                    Spacer(Modifier.height(16.dp))
-                    Button(
-                        onClick = onStop,
-                        enabled = !state.busy,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .heightIn(min = 52.dp),
-                    ) {
-                        if (state.busy) {
-                            CircularProgressIndicator(
-                                modifier = Modifier.size(18.dp),
-                                strokeWidth = 2.dp,
-                                color = MaterialTheme.colorScheme.onPrimary,
-                            )
-                        } else {
-                            Icon(
-                                imageVector = Icons.Filled.Stop,
-                                contentDescription = null,
-                                modifier = Modifier.size(20.dp),
-                            )
-                        }
-                        Spacer(Modifier.width(8.dp))
-                        Text(stringResource(R.string.home_stop_trip))
-                    }
-                }
-            }
-        } else {
-            item {
-                SectionCard {
-                    Button(
-                        onClick = {
-                            if (permissions.hasFineLocation) {
-                                onStart()
-                            } else {
-                                permissions.requestForegroundLocation()
-                            }
-                        },
-                        enabled = !state.busy,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .heightIn(min = 56.dp),
-                    ) {
-                        if (state.busy) {
-                            CircularProgressIndicator(
-                                modifier = Modifier.size(18.dp),
-                                strokeWidth = 2.dp,
-                                color = MaterialTheme.colorScheme.onPrimary,
-                            )
-                        } else {
-                            Icon(
-                                imageVector = Icons.Filled.PlayArrow,
-                                contentDescription = null,
-                                modifier = Modifier.size(22.dp),
-                            )
-                        }
-                        Spacer(Modifier.width(8.dp))
-                        Text(stringResource(R.string.home_start_trip))
-                    }
-                    Spacer(Modifier.height(8.dp))
-                    SwitchRow(
-                        title = stringResource(R.string.home_auto_detection_title),
-                        description = stringResource(R.string.home_auto_detection_body),
-                        checked = state.autoDetectionEnabled,
-                        onCheckedChange = onAutoDetectionChange,
-                        enabled = !live.recording,
-                    )
-                }
-            }
-
-            if (state.monitoring) {
-                item {
-                    Surface(
-                        color = MaterialTheme.colorScheme.secondaryContainer,
-                        shape = RoundedCornerShape(16.dp),
-                        modifier = Modifier.fillMaxWidth(),
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(16.dp),
-                            verticalAlignment = Alignment.CenterVertically,
+                if (state.monitoring) {
+                    item {
+                        Surface(
+                            color = MaterialTheme.colorScheme.secondaryContainer,
+                            shape = RoundedCornerShape(16.dp),
+                            modifier = Modifier.fillMaxWidth(),
                         ) {
-                            Icon(
-                                imageVector = Icons.Filled.LocationOn,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.onSecondaryContainer,
-                                modifier = Modifier.size(22.dp),
-                            )
-                            Spacer(Modifier.width(12.dp))
-                            Column {
-                                Text(
-                                    text = stringResource(R.string.home_monitoring_title),
-                                    style = MaterialTheme.typography.titleSmall,
-                                    color = MaterialTheme.colorScheme.onSecondaryContainer,
+                            Row(
+                                modifier = Modifier.padding(16.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Filled.LocationOn,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.onSecondaryContainer,
+                                    modifier = Modifier.size(22.dp),
                                 )
-                                Text(
-                                    text = stringResource(R.string.home_monitoring_body),
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSecondaryContainer,
-                                )
+                                Spacer(Modifier.width(12.dp))
+                                Column {
+                                    Text(
+                                        text = stringResource(R.string.home_monitoring_title),
+                                        style = MaterialTheme.typography.titleSmall,
+                                        color = MaterialTheme.colorScheme.onSecondaryContainer,
+                                    )
+                                    Text(
+                                        text = stringResource(R.string.home_monitoring_body),
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSecondaryContainer,
+                                    )
+                                }
                             }
                         }
                     }
                 }
-            }
-        }
 
-        val lifetime = state.lifetime
-        if (lifetime != null && lifetime.hasTrips) {
-            item {
-                LifetimeCard(
-                    lifetime = lifetime,
-                    speedUnit = state.speedUnit,
-                    locale = locale,
-                )
-            }
-        }
-
-        item {
-            val trip = state.lastTrip
-            if (trip == null) {
-                SectionCard {
-                    EmptyState(
-                        title = stringResource(R.string.home_no_trips_title),
-                        body = stringResource(R.string.home_no_trips_body),
-                        icon = Icons.Filled.PlayArrow,
-                    )
-                }
-            } else {
-                LastTripCard(
-                    trip = trip,
-                    locale = locale,
-                    onClick = { onOpenTrip(trip.id) },
-                )
-            }
-        }
-
-        if (state.tips.isNotEmpty() && state.lastTrip != null) {
-            item {
-                SectionCard(title = stringResource(R.string.home_tips_title)) {
-                    state.tips.forEachIndexed { index, tip ->
-                        if (index > 0) Spacer(Modifier.height(12.dp))
-                        TipRow(tip = tip, locale = locale)
-                    }
-                    Spacer(Modifier.height(4.dp))
-                    TextButton(
-                        onClick = onOpenHistory,
-                        modifier = Modifier.heightIn(min = 48.dp),
-                    ) {
-                        Text(stringResource(R.string.home_tips_history_action))
+                val lifetime = state.lifetime
+                if (lifetime != null && lifetime.hasTrips) {
+                    item {
+                        LifetimeCard(
+                            lifetime = lifetime,
+                            speedUnit = state.speedUnit,
+                            locale = locale,
+                        )
                     }
                 }
+
+                item {
+                    val trip = state.lastTrip
+                    if (trip == null) {
+                        SectionCard {
+                            EmptyState(
+                                title = stringResource(R.string.home_no_trips_title),
+                                body = stringResource(R.string.home_no_trips_body),
+                                icon = Icons.Filled.PlayArrow,
+                            )
+                        }
+                    } else {
+                        LastTripCard(
+                            trip = trip,
+                            locale = locale,
+                            onClick = { onOpenTrip(trip.id) },
+                        )
+                    }
+                }
+
+                if (state.tips.isNotEmpty() && state.lastTrip != null) {
+                    item {
+                        SectionCard(title = stringResource(R.string.home_tips_title)) {
+                            state.tips.forEachIndexed { index, tip ->
+                                if (index > 0) Spacer(Modifier.height(12.dp))
+                                TipRow(tip = tip, locale = locale)
+                            }
+                            Spacer(Modifier.height(4.dp))
+                            TextButton(
+                                onClick = onOpenHistory,
+                                modifier = Modifier.heightIn(min = 48.dp),
+                            ) {
+                                Text(stringResource(R.string.home_tips_history_action))
+                            }
+                        }
+                    }
+                }
+
+                if (!state.isPremium) {
+                    item {
+                        PremiumCard(onOpenPaywall = onOpenPaywall)
+                    }
+                }
             }
         }
 
-        if (!state.isPremium) {
-            item {
-                PremiumCard(onOpenPaywall = onOpenPaywall)
-            }
-        }
+        SnackbarHost(
+            hostState = snackbarHostState,
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .padding(16.dp),
+        )
+    }
+
+    if (showStopConfirm && live.recording) {
+        AlertDialog(
+            onDismissRequest = { showStopConfirm = false },
+            title = { Text(stringResource(R.string.home_stop_confirm_title)) },
+            text = { Text(stringResource(R.string.home_stop_confirm_body)) },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showStopConfirm = false
+                        onStop()
+                    },
+                ) {
+                    Text(stringResource(R.string.home_stop_trip))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showStopConfirm = false }) {
+                    Text(stringResource(R.string.common_cancel))
+                }
+            },
+        )
     }
 }
 
@@ -474,6 +645,13 @@ private fun LastTripCard(
     locale: Locale,
     onClick: () -> Unit,
 ) {
+    val bandLabel = scoreBandLabel(trip.score)
+    val badgeSemantics = if (bandLabel != null) {
+        stringResource(R.string.score_semantics, trip.score, bandLabel)
+    } else {
+        stringResource(R.string.score_badge_semantics, trip.score)
+    }
+
     Card(
         onClick = onClick,
         modifier = Modifier.fillMaxWidth(),
@@ -491,10 +669,7 @@ private fun LastTripCard(
             Row(verticalAlignment = Alignment.CenterVertically) {
                 ScoreBadge(
                     score = trip.score,
-                    contentDescription = stringResource(
-                        R.string.score_badge_semantics,
-                        trip.score,
-                    ),
+                    contentDescription = badgeSemantics,
                 )
                 Spacer(Modifier.width(12.dp))
                 Column(modifier = Modifier.weight(1f)) {

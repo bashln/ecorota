@@ -21,13 +21,15 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import app.ecorota.R
 import app.ecorota.ui.format.DateFormats
+import app.ecorota.ui.format.Formatters
 import java.util.Locale
+import kotlin.math.roundToInt
 
 /**
  * Seven day trend: bars for avoidable cost, line for the average score. Days
@@ -37,22 +39,43 @@ import java.util.Locale
 @Composable
 fun TrendChart(
     points: List<TrendPoint>,
+    currency: String,
     locale: Locale,
     contentDescription: String,
     modifier: Modifier = Modifier,
 ) {
     if (points.isEmpty()) return
     val barColor = MaterialTheme.colorScheme.primary
+    val pastBarColor = barColor.copy(alpha = 0.78f)
     val lineColor = MaterialTheme.colorScheme.tertiary
     val gridColor = MaterialTheme.colorScheme.outlineVariant
     val maxCost = points.maxOf { it.avoidableCost }.takeIf { it > 0.0 } ?: 1.0
 
-    Column(modifier = modifier.fillMaxWidth()) {
+    val activeDaySummaries = points.mapNotNull { point ->
+        val score = point.averageScore
+        if (score == null || point.tripCount == 0) {
+            null
+        } else {
+            val dayLabel = DateFormats.shortDay(point.epochDay, locale)
+            val costLabel = Formatters.money(point.avoidableCost, currency, locale)
+            "$dayLabel: ${score.roundToInt()}/100, $costLabel"
+        }
+    }
+    val spokenDescription = if (activeDaySummaries.isEmpty()) {
+        contentDescription
+    } else {
+        "$contentDescription. ${activeDaySummaries.joinToString("; ")}"
+    }
+
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .clearAndSetSemantics { this.contentDescription = spokenDescription },
+    ) {
         Canvas(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(150.dp)
-                .semantics { this.contentDescription = contentDescription },
+                .height(150.dp),
         ) {
             val cellWidth = size.width / points.size
             val barWidth = cellWidth * 0.46f
@@ -70,7 +93,7 @@ fun TrendChart(
                 if (point.avoidableCost > 0.0) {
                     val barHeight = (point.avoidableCost / maxCost * barAreaHeight).toFloat()
                     drawRoundRect(
-                        color = if (index == points.lastIndex) barColor else barColor.copy(alpha = 0.55f),
+                        color = if (index == points.lastIndex) barColor else pastBarColor,
                         topLeft = Offset(left, barBottom - barHeight),
                         size = Size(barWidth, barHeight),
                         cornerRadius = CornerRadius(barWidth / 2f, barWidth / 2f),
@@ -117,7 +140,7 @@ fun TrendChart(
         }
         Spacer(Modifier.height(12.dp))
         Row(verticalAlignment = Alignment.CenterVertically) {
-            LegendDot(color = barColor.copy(alpha = 0.55f))
+            LegendDot(color = pastBarColor)
             Spacer(Modifier.width(6.dp))
             Text(
                 text = stringResource(R.string.history_chart_legend_cost),

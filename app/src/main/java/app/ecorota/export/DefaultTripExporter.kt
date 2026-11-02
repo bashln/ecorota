@@ -120,11 +120,24 @@ class DefaultTripExporter : TripExporter {
         return fields.joinToString(",") { csvField(it) }
     }
 
-    /** RFC 4180: quote when needed, doubling embedded quotes. */
+    /**
+     * RFC 4180 quoting with spreadsheet formula neutralization so string columns
+     * beginning with `=`, `+`, `-`, `@`, `|`, or tab cannot execute in spreadsheet apps.
+     */
     private fun csvField(value: String): String {
-        val needsQuotes = value.any { it == ',' || it == '"' || it == '\n' || it == '\r' }
-        if (!needsQuotes) return value
-        return "\"" + value.replace("\"", "\"\"") + "\""
+        val safe = if (needsFormulaEscape(value)) "'$value" else value
+        val needsQuotes = safe.any { it == ',' || it == '"' || it == '\n' || it == '\r' }
+        if (!needsQuotes) return safe
+        return "\"" + safe.replace("\"", "\"\"") + "\""
+    }
+
+    private fun needsFormulaEscape(value: String): Boolean {
+        if (value.isEmpty()) return false
+        return when (value[0]) {
+            '=', '+', '@', '\t', '|' -> true
+            '-' -> !NUMERIC_LITERAL.matches(value)
+            else -> false
+        }
     }
 
     private fun xmlText(value: String): String = buildString(value.length) {
@@ -181,5 +194,6 @@ class DefaultTripExporter : TripExporter {
 
         val LOCAL_ISO: DateTimeFormatter = DateTimeFormatter.ISO_OFFSET_DATE_TIME
         val FILE_STAMP: DateTimeFormatter = DateTimeFormatter.ofPattern("yyyyMMdd-HHmm", Locale.US)
+        val NUMERIC_LITERAL: Regex = Regex("^-?\\d+(\\.\\d+)?$")
     }
 }

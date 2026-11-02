@@ -116,7 +116,7 @@ class TripDetailViewModel(
         viewModelScope.launch {
             val success = withContext(Dispatchers.IO) {
                 runCatching {
-                    resolver.openOutputStream(uri)?.use { output ->
+                    resolver.openOutputStream(uri, "wt")?.use { output ->
                         exporter.writeGpx(record, output)
                     } ?: error("No output stream for $uri")
                 }.isSuccess
@@ -135,7 +135,7 @@ class TripDetailViewModel(
             val success = withContext(Dispatchers.IO) {
                 runCatching {
                     val allTrips = container.tripRepository.getAllTrips()
-                    resolver.openOutputStream(uri)?.use { output ->
+                    resolver.openOutputStream(uri, "wt")?.use { output ->
                         exporter.writeCsv(allTrips, output)
                     } ?: error("No output stream for $uri")
                 }.isSuccess

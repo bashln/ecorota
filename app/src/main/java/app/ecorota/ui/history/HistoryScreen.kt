@@ -42,6 +42,7 @@ import app.ecorota.ui.components.ScoreBadge
 import app.ecorota.ui.components.ScreenHeader
 import app.ecorota.ui.components.SectionCard
 import app.ecorota.ui.components.StatGrid
+import app.ecorota.ui.components.scoreBandLabel
 import app.ecorota.ui.format.DateFormats
 import app.ecorota.ui.format.Formatters
 import java.util.Locale
@@ -116,7 +117,7 @@ private fun HistoryScreen(
 
         state.days.forEach { day ->
             item(key = "day-${day.epochDay}") {
-                DayHeader(day = day, currency = state.currency, locale = locale)
+                DayHeader(day = day, locale = locale)
             }
             items(items = day.trips, key = { trip -> trip.id }) { trip ->
                 TripRow(
@@ -152,6 +153,14 @@ private fun TotalsCard(state: HistoryUiState, locale: Locale) {
             label = stringResource(R.string.history_avoidable_fuel),
             value = Formatters.liters(totals.avoidableLiters, locale),
         )
+        if (state.hasMixedCurrencies) {
+            Spacer(Modifier.height(6.dp))
+            Text(
+                text = stringResource(R.string.history_mixed_currency_note, state.currency),
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
     }
 }
 
@@ -162,6 +171,7 @@ private fun TrendCard(state: HistoryUiState, locale: Locale) {
         if (hasTrips) {
             TrendChart(
                 points = state.trend,
+                currency = state.currency,
                 locale = locale,
                 contentDescription = stringResource(R.string.history_chart_description),
             )
@@ -209,13 +219,14 @@ private fun TrendDayRow(
             text = label,
             style = MaterialTheme.typography.labelLarge,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.width(88.dp),
         )
+        Spacer(Modifier.width(8.dp))
         Text(
             text = DateFormats.monthDay(point.epochDay, locale),
             style = MaterialTheme.typography.bodyMedium,
             modifier = Modifier.weight(1f),
         )
+        Spacer(Modifier.width(8.dp))
         Text(
             text = stringResource(
                 R.string.history_day_value,
@@ -271,7 +282,7 @@ private fun LockedTrendCard(onOpenPaywall: () -> Unit) {
 }
 
 @Composable
-private fun DayHeader(day: HistoryDay, currency: String, locale: Locale) {
+private fun DayHeader(day: HistoryDay, locale: Locale) {
     val tripCount = pluralStringResource(
         R.plurals.history_trips_count,
         day.totals.tripCount,
@@ -299,7 +310,7 @@ private fun DayHeader(day: HistoryDay, currency: String, locale: Locale) {
             )
         }
         Text(
-            text = Formatters.money(day.totals.avoidableCost, currency, locale),
+            text = Formatters.money(day.displayCost, day.displayCurrency, locale),
             style = MaterialTheme.typography.labelMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
@@ -313,6 +324,7 @@ private fun TripRow(
     onClick: () -> Unit,
 ) {
     val events = pluralStringResource(R.plurals.history_events_count, trip.eventCount, trip.eventCount)
+    val bandLabel = scoreBandLabel(trip.score)
     Card(
         onClick = onClick,
         modifier = Modifier.fillMaxWidth(),
@@ -327,10 +339,11 @@ private fun TripRow(
         ) {
             ScoreBadge(
                 score = trip.score,
-                contentDescription = stringResource(
-                    R.string.score_badge_semantics,
-                    trip.score,
-                ),
+                contentDescription = if (bandLabel != null) {
+                    stringResource(R.string.score_semantics, trip.score, bandLabel)
+                } else {
+                    stringResource(R.string.score_badge_semantics, trip.score)
+                },
             )
             Spacer(Modifier.width(12.dp))
             Column(modifier = Modifier.weight(1f)) {

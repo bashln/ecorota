@@ -30,6 +30,8 @@
     <!-- Location and auto-detection permissions -->
     <string name="location_permission_denied_title">Location permission needed</string>
     <string name="location_permission_denied_body">EcoRota cannot detect or record trips without location access. You can allow it in the app settings.</string>
+    <string name="location_precise_needed_title">Precise location needed</string>
+    <string name="location_precise_needed_body">Approximate location cannot measure speed or route distance accurately. Open the app settings, choose Permissions, then Location, and turn on Use precise location.</string>
     <string name="auto_detection_background_title">Allow all-the-time location?</string>
     <string name="auto_detection_background_disclosure">Auto-detection watches for drives while EcoRota is in the background, so a trip can start without you opening the app. Location is requested about every 30 seconds to detect the start and end of a drive. You can turn this off at any time in Settings.</string>
     <string name="auto_detection_background_allow">Allow all the time</string>
@@ -44,7 +46,7 @@
     <string name="onboarding_intro_title">Turn every drive into savings</string>
     <string name="onboarding_intro_body">EcoRota records your trips, scores them from 0 to 100 and shows the fuel that could have stayed in the tank.</string>
     <string name="onboarding_intro_gauge_caption">Speedometer preview</string>
-    <string name="onboarding_intro_gauge_description">Speedometer preview</string>
+    <string name="onboarding_intro_gauge_description">Speedometer preview showing %1$s</string>
     <string name="onboarding_speed_unit_title">Speed unit</string>
     <string name="speed_unit_kilometers_per_hour">km/h</string>
     <string name="speed_unit_miles_per_hour">mph</string>
@@ -104,8 +106,17 @@
     <string name="home_automatic_trip">Started automatically</string>
     <string name="home_permission_banner">Location is off. EcoRota cannot record a trip without it.</string>
     <string name="home_permission_action">Allow location</string>
+    <string name="home_gps_off_banner">Device location (GPS) is turned off. Turn it on to record trips.</string>
+    <string name="home_gps_off_action">Location settings</string>
+    <string name="home_vehicle_active">Vehicle: %1$s</string>
+    <string name="home_vehicle_select">Change</string>
     <string name="home_start_trip">Start trip</string>
     <string name="home_stop_trip">Finish trip</string>
+    <string name="home_stop_confirm_title">Finish this trip?</string>
+    <string name="home_stop_confirm_body">EcoRota will stop recording and score the drive.</string>
+    <string name="home_msg_gps_off">Turn on device location (GPS) before starting a trip.</string>
+    <string name="home_msg_trip_too_short">Trip discarded: drives shorter than 200 m or 1 minute are not saved.</string>
+    <string name="home_msg_trip_save_failed">Could not save the finished trip.</string>
     <string name="home_live_title">This trip</string>
     <string name="home_live_distance">Distance</string>
     <string name="home_live_duration">Duration</string>
@@ -165,6 +176,7 @@
     <string name="history_total_average_score">Average score</string>
     <string name="history_total_avoidable_cost">Avoidable cost</string>
     <string name="history_avoidable_fuel">Avoidable fuel</string>
+    <string name="history_mixed_currency_note">Cost totals include trips in %1$s only because your history uses multiple currencies.</string>
     <string name="history_trend_title">Last 7 days</string>
     <string name="history_chart_legend_cost">Avoidable cost</string>
     <string name="history_chart_legend_score">Average score</string>
@@ -272,6 +284,8 @@
     <string name="settings_vehicle_default_badge">Default</string>
     <string name="settings_vehicle_set_default">Set as default</string>
     <string name="settings_vehicle_delete">Delete</string>
+    <string name="settings_vehicle_delete_title">Delete %1$s?</string>
+    <string name="settings_vehicle_delete_body">Past trips keep their saved fuel cost, while this vehicle profile is removed.</string>
     <string name="settings_vehicle_add">Add vehicle</string>
     <string name="settings_vehicle_add_body">Each vehicle keeps its own consumption and fuel price.</string>
     <string name="settings_vehicle_add_locked">Add another vehicle (Premium)</string>
@@ -284,6 +298,7 @@
     <string name="settings_keep_screen_on_body">The display stays awake while a trip is recording.</string>
     <string name="settings_permission_needed">Automatic trips need location permission.</string>
     <string name="settings_background_missing">Background location is not allowed. Automatic trips only start while EcoRota is open.</string>
+    <string name="settings_gps_off_needed">Device location (GPS) is turned off. Automatic trips will resume once you turn it back on.</string>
     <string name="settings_map_title">Map tiles</string>
     <string name="settings_map_consent_title">Download map tiles</string>
     <string name="settings_map_consent_body">When on, EcoRota contacts OpenStreetMap servers to download map tiles. Off by default. Trips, scores and exports stay on this device.</string>
@@ -303,6 +318,7 @@
     <string name="settings_updates_available">Version %1$s is available.</string>
     <string name="settings_updates_download">Download update</string>
     <string name="settings_updates_downloading">Downloading and verifying…</string>
+    <string name="settings_updates_downloading_progress">Downloading and verifying (%1$s / %2$s)…</string>
     <string name="settings_updates_ready">Update downloaded and verified. It is signed with the same key as this build.</string>
     <string name="settings_updates_install">Install update</string>
     <string name="settings_updates_permission_missing">Android needs permission to install updates from EcoRota.</string>
@@ -321,14 +337,18 @@
     <string name="settings_data_title">Data</string>
     <string name="settings_retention_title">Keep trips for</string>
     <string name="settings_retention_forever">Forever</string>
-    <string name="settings_retention_body">The daily maintenance job removes trips older than the window. Keeping them forever is the default.</string>
+    <string name="settings_retention_body">Trips older than the chosen window are removed immediately and by the daily maintenance job. Keeping them forever is the default.</string>
+    <string name="settings_retention_confirm_title">Shorten retention window?</string>
+    <string name="settings_retention_confirm_body">Trips older than %1$s will be permanently deleted right away.</string>
+    <string name="settings_retention_confirm_action">Apply and delete old trips</string>
     <plurals name="settings_retention_days">
         <item quantity="one">%d day</item>
         <item quantity="other">%d days</item>
     </plurals>
+    <string name="settings_export_csv">Export all trips as CSV</string>
     <string name="settings_delete_all">Delete all trips</string>
     <string name="settings_delete_all_title">Delete all trips?</string>
-    <string name="settings_delete_all_body">Every trip, route and event saved on this device will be removed. This cannot be undone.</string>
+    <string name="settings_delete_all_body">Every trip, route, event and cached map tile saved on this device will be removed. This cannot be undone.</string>
     <string name="settings_delete_all_confirm">Delete all</string>
     <string name="settings_scoring_title">Scoring thresholds</string>
     <string name="settings_scoring_body">Changes apply to new trips only. Trips already saved keep their score.</string>
@@ -338,7 +358,7 @@
     <string name="settings_scoring_speed">Efficient speed limit</string>
     <string name="settings_scoring_idle">Minimum idle time</string>
     <string name="settings_scoring_mps2">%1$s m/s²</string>
-    <string name="settings_scoring_speed_value">%1$d km/h</string>
+    <string name="settings_scoring_speed_value_unit">%1$d %2$s</string>
     <string name="settings_scoring_idle_value">%1$d s</string>
     <string name="settings_scoring_default">Default %1$s</string>
     <string name="settings_scoring_reset">Reset to defaults</string>

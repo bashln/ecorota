@@ -58,6 +58,21 @@ class DefaultTripExporterTest {
     }
 
     @Test
+    fun `csv neutralizes formulas in text columns`() {
+        val rows = csvRows(exporter, listOf(trip(id = "=1+1", vehicleId = "@SUM(A1)")))
+
+        val row = rows[1]
+        assertTrue(row, row.startsWith("'=1+1,'@SUM(A1),"))
+    }
+
+    @Test
+    fun `csv leaves numeric text unescaped`() {
+        val rows = csvRows(exporter, listOf(trip(vehicleId = "-23.5")))
+
+        assertTrue(rows[1], rows[1].startsWith("trip-1,-23.5,"))
+    }
+
+    @Test
     fun `csv writes one row per event`() {
         val events = listOf(event("e1", DrivingEventType.HARD_BRAKING), event("e2", DrivingEventType.IDLING))
         val rows = csvRows(exporter, listOf(trip(events = events)))

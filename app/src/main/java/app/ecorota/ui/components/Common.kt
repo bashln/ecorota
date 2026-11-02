@@ -36,10 +36,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import app.ecorota.ui.theme.ScoreBand
 import app.ecorota.ui.theme.color
@@ -108,7 +110,8 @@ fun StatTile(
                 text = label,
                 style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 1,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
             )
             Spacer(Modifier.height(2.dp))
             Text(
@@ -184,14 +187,16 @@ fun ScoreBadge(
 ) {
     val band = ScoreBand.from(score)
     val color = band?.color() ?: MaterialTheme.colorScheme.outline
+    val fontScale = LocalDensity.current.fontScale
+    val scaledSize = (size * fontScale.coerceIn(1f, 1.45f)).dp
     val badgeModifier = if (contentDescription != null) {
         modifier
-            .size(size.dp)
+            .size(scaledSize)
             .background(color.copy(alpha = 0.16f), CircleShape)
             .clearAndSetSemantics { this.contentDescription = contentDescription }
     } else {
         modifier
-            .size(size.dp)
+            .size(scaledSize)
             .background(color.copy(alpha = 0.16f), CircleShape)
     }
     Box(
@@ -202,6 +207,7 @@ fun ScoreBadge(
             text = score.toString(),
             style = MaterialTheme.typography.titleMedium,
             color = color,
+            maxLines = 1,
         )
     }
 }
