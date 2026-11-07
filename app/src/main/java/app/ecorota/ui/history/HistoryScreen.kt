@@ -21,8 +21,12 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalConfiguration
@@ -74,11 +78,12 @@ private fun HistoryScreen(
         return
     }
     val locale = LocalConfiguration.current.locales[0]
+    var showSummary by rememberSaveable { mutableStateOf(false) }
 
     LazyColumn(
         modifier = Modifier.fillMaxWidth(),
         contentPadding = PaddingValues(horizontal = 20.dp, vertical = 16.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
+        verticalArrangement = Arrangement.spacedBy(20.dp),
     ) {
         item {
             ScreenHeader(
@@ -89,11 +94,19 @@ private fun HistoryScreen(
 
         if (state.totals != null && state.totals.tripCount > 0) {
             item {
+                TextButton(onClick = { showSummary = !showSummary }) {
+                    Text(stringResource(if (showSummary) R.string.history_hide_summary else R.string.history_show_summary))
+                }
+            }
+        }
+
+        if (showSummary && state.totals != null && state.totals.tripCount > 0) {
+            item {
                 TotalsCard(state = state, locale = locale)
             }
         }
 
-        if (state.totals != null && state.totals.tripCount > 0) {
+        if (showSummary && state.totals != null && state.totals.tripCount > 0) {
             item {
                 if (state.isPremium) {
                     TrendCard(state = state, locale = locale)
@@ -244,9 +257,9 @@ private fun LockedTrendCard(onOpenPaywall: () -> Unit) {
     Card(
         onClick = onOpenPaywall,
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(20.dp),
+        shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+            containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
         ),
     ) {
         Row(

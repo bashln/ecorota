@@ -439,4 +439,6 @@
     <string name="paywall_msg_purchase_failed">The purchase could not be completed.</string>
     <string name="paywall_msg_restore_success">Purchase restored.</string>
     <string name="paywall_msg_restore_nothing">No purchase was found for this account.</string>
+    <string name="history_show_summary">Show statistics</string>
+    <string name="history_hide_summary">Hide statistics</string>
 </resources>

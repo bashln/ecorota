@@ -205,6 +205,64 @@ private fun HomeScreen(
                 )
             }
 
+            item {
+                if (live.recording) {
+                    Button(
+                        onClick = { showStopConfirm = true },
+                        enabled = !state.busy,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(min = 52.dp),
+                    ) {
+                        if (state.busy) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(18.dp),
+                                strokeWidth = 2.dp,
+                                color = MaterialTheme.colorScheme.onPrimary,
+                            )
+                        } else {
+                            Icon(
+                                imageVector = Icons.Filled.Stop,
+                                contentDescription = null,
+                                modifier = Modifier.size(20.dp),
+                            )
+                        }
+                        Spacer(Modifier.width(8.dp))
+                        Text(stringResource(R.string.home_stop_trip))
+                    }
+                } else {
+                    Button(
+                        onClick = {
+                            if (!permissions.hasFineLocation) {
+                                permissions.requestForegroundLocation()
+                            } else {
+                                onStart()
+                            }
+                        },
+                        enabled = !state.busy,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(min = 56.dp),
+                    ) {
+                        if (state.busy) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(18.dp),
+                                strokeWidth = 2.dp,
+                                color = MaterialTheme.colorScheme.onPrimary,
+                            )
+                        } else {
+                            Icon(
+                                imageVector = Icons.Filled.PlayArrow,
+                                contentDescription = null,
+                                modifier = Modifier.size(22.dp),
+                            )
+                        }
+                        Spacer(Modifier.width(8.dp))
+                        Text(stringResource(R.string.home_start_trip))
+                    }
+                }
+            }
+
             if (!permissions.hasFineLocation) {
                 item {
                     NoticeBanner(
@@ -321,30 +379,6 @@ private fun HomeScreen(
                                     ),
                             ),
                         )
-                        Spacer(Modifier.height(16.dp))
-                        Button(
-                            onClick = { showStopConfirm = true },
-                            enabled = !state.busy,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .heightIn(min = 52.dp),
-                        ) {
-                            if (state.busy) {
-                                CircularProgressIndicator(
-                                    modifier = Modifier.size(18.dp),
-                                    strokeWidth = 2.dp,
-                                    color = MaterialTheme.colorScheme.onPrimary,
-                                )
-                            } else {
-                                Icon(
-                                    imageVector = Icons.Filled.Stop,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(20.dp),
-                                )
-                            }
-                            Spacer(Modifier.width(8.dp))
-                            Text(stringResource(R.string.home_stop_trip))
-                        }
                     }
                 }
             } else {
@@ -404,35 +438,6 @@ private fun HomeScreen(
                             }
                         }
 
-                        Button(
-                            onClick = {
-                                if (!permissions.hasFineLocation) {
-                                    permissions.requestForegroundLocation()
-                                } else {
-                                    onStart()
-                                }
-                            },
-                            enabled = !state.busy,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .heightIn(min = 56.dp),
-                        ) {
-                            if (state.busy) {
-                                CircularProgressIndicator(
-                                    modifier = Modifier.size(18.dp),
-                                    strokeWidth = 2.dp,
-                                    color = MaterialTheme.colorScheme.onPrimary,
-                                )
-                            } else {
-                                Icon(
-                                    imageVector = Icons.Filled.PlayArrow,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(22.dp),
-                                )
-                            }
-                            Spacer(Modifier.width(8.dp))
-                            Text(stringResource(R.string.home_start_trip))
-                        }
                         Spacer(Modifier.height(8.dp))
                         SwitchRow(
                             title = stringResource(R.string.home_auto_detection_title),
@@ -493,13 +498,11 @@ private fun HomeScreen(
                 item {
                     val trip = state.lastTrip
                     if (trip == null) {
-                        SectionCard {
-                            EmptyState(
-                                title = stringResource(R.string.home_no_trips_title),
-                                body = stringResource(R.string.home_no_trips_body),
-                                icon = Icons.Filled.PlayArrow,
-                            )
-                        }
+                        EmptyState(
+                            title = stringResource(R.string.home_no_trips_title),
+                            body = stringResource(R.string.home_no_trips_body),
+                            icon = Icons.Filled.PlayArrow,
+                        )
                     } else {
                         LastTripCard(
                             trip = trip,
@@ -655,7 +658,7 @@ private fun LastTripCard(
     Card(
         onClick = onClick,
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(20.dp),
+        shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
         ),
@@ -737,7 +740,7 @@ private fun PremiumCard(onOpenPaywall: () -> Unit) {
     Card(
         onClick = onOpenPaywall,
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(20.dp),
+        shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.primaryContainer,
         ),

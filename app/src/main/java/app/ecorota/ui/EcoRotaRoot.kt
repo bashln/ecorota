@@ -78,7 +78,7 @@ private fun MainShell(container: AppContainer) {
         contentWindowInsets = WindowInsets.safeDrawing,
         bottomBar = {
             if (showBottomBar) {
-                NavigationBar {
+                NavigationBar(containerColor = androidx.compose.material3.MaterialTheme.colorScheme.surface) {
                     destinations.forEach { destination ->
                         val selected = currentDestination?.hierarchy?.any {
                             it.route == destination.route

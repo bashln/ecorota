@@ -41,7 +41,6 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import app.ecorota.ui.theme.ScoreBand
 import app.ecorota.ui.theme.color
@@ -76,7 +75,7 @@ fun SectionCard(
 ) {
     Card(
         modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(20.dp),
+        shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(containerColor = containerColor),
     ) {
         Column(modifier = Modifier.padding(contentPadding)) {
@@ -99,26 +98,20 @@ fun StatTile(
     Surface(
         modifier = modifier,
         shape = RoundedCornerShape(14.dp),
-        color = if (highlight) {
-            MaterialTheme.colorScheme.primaryContainer
-        } else {
-            MaterialTheme.colorScheme.surfaceContainerHigh
-        },
+        color = Color.Transparent,
     ) {
         Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp)) {
             Text(
                 text = label,
                 style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
             )
             Spacer(Modifier.height(2.dp))
             Text(
                 text = value,
                 style = MaterialTheme.typography.titleMedium,
                 color = if (highlight) {
-                    MaterialTheme.colorScheme.onPrimaryContainer
+                    MaterialTheme.colorScheme.primary
                 } else {
                     MaterialTheme.colorScheme.onSurface
                 },
@@ -127,15 +120,16 @@ fun StatTile(
     }
 }
 
-/** Two-column grid of [StatTile]s without FlowRow so order stays predictable. */
+/** Metrics retain reading order when enlarged text needs a single column. */
 @Composable
 fun StatGrid(
     items: List<Pair<String, String>>,
     modifier: Modifier = Modifier,
     highlightFirst: Boolean = false,
 ) {
+    val columns = if (LocalDensity.current.fontScale > 1.3f) 1 else 2
     Column(modifier = modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        items.chunked(2).forEach { rowItems ->
+        items.chunked(columns).forEachIndexed { rowIndex, rowItems ->
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -145,10 +139,10 @@ fun StatGrid(
                         label = label,
                         value = value,
                         modifier = Modifier.weight(1f),
-                        highlight = highlightFirst && index == 0,
+                        highlight = highlightFirst && rowIndex == 0 && index == 0,
                     )
                 }
-                if (rowItems.size == 1) Spacer(Modifier.weight(1f))
+                if (rowItems.size < columns) Spacer(Modifier.weight(1f))
             }
         }
     }
@@ -174,6 +168,7 @@ fun KeyValueRow(label: String, value: String, modifier: Modifier = Modifier) {
             text = value,
             style = MaterialTheme.typography.bodyMedium,
             textAlign = TextAlign.End,
+            modifier = Modifier.weight(1f),
         )
     }
 }
