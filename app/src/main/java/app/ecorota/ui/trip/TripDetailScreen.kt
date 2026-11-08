@@ -305,7 +305,7 @@ private fun TripDetailContent(
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(horizontal = 20.dp, vertical = 12.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp),
+        verticalArrangement = Arrangement.spacedBy(20.dp),
     ) {
         item {
             HeaderCard(trip = trip, vehicleName = state.vehicleName, locale = locale, band = band)
