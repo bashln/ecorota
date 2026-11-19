@@ -124,6 +124,8 @@ class TripTrackingService : Service() {
     override fun onDestroy() {
         scope.cancel()
         motionSampler?.stop()
+        gate = null
+        locationActive = false
         releaseRecording()
         detector = null
         locationSource.stop()
