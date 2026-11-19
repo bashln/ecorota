@@ -61,7 +61,6 @@ import app.ecorota.core.model.TripRecord
 import app.ecorota.di.AppContainer
 import app.ecorota.tracking.TrackingNotice
 import app.ecorota.ui.components.EmptyState
-import app.ecorota.ui.components.KeyValueRow
 import app.ecorota.ui.components.LoadingState
 import app.ecorota.ui.components.NoticeBanner
 import app.ecorota.ui.components.ScoreBadge
@@ -622,7 +621,7 @@ private fun LifetimeCard(
                 text = stringResource(R.string.home_lifetime_records_title),
                 style = MaterialTheme.typography.titleSmall,
             )
-            KeyValueRow(
+            RecordRow(
                 label = stringResource(R.string.home_lifetime_best_score),
                 value = stringResource(
                     R.string.home_lifetime_record_value,
@@ -630,7 +629,7 @@ private fun LifetimeCard(
                     DateFormats.dateTime(bestScoreAtMs, locale),
                 ),
             )
-            KeyValueRow(
+            RecordRow(
                 label = stringResource(R.string.home_lifetime_longest_trip),
                 value = stringResource(
                     R.string.home_lifetime_record_value,
@@ -639,6 +638,22 @@ private fun LifetimeCard(
                 ),
             )
         }
+    }
+}
+
+/** Label above the value, so a long timestamp never breaks mid-line and drifts. */
+@Composable
+private fun RecordRow(label: String, value: String) {
+    Column(modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp)) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Text(
+            text = value,
+            style = MaterialTheme.typography.bodyMedium,
+        )
     }
 }
 
