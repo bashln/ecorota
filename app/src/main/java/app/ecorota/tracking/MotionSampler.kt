@@ -8,7 +8,6 @@ import android.hardware.SensorManager
 import app.ecorota.core.detection.MotionSample
 import kotlin.math.sqrt
 
-/** Low-rate motion source for the gate, shared by both flavors. */
 interface MotionSampler {
     /** False when the device has no accelerometer; nothing is registered then. */
     fun start(): Boolean

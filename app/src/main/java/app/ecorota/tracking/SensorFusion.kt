@@ -136,8 +136,7 @@ internal data class AxisAcceleration(
  * from the mount: device -Z when the screen faces the driver, device +Y when
  * the phone lies flat with its top pointing at the windshield. The first
  * candidate that is not nearly vertical wins; if neither is usable the sample
- * is dropped and the analyzer falls back to GPS. [horizontalMagnitude] needs no
- * forward axis, so motion gating works on mounts [project] cannot resolve.
+ * is dropped and the analyzer falls back to GPS.
  */
 internal class AccelerationProjector(
     private val gravityAlpha: Float = GRAVITY_ALPHA,
@@ -186,7 +185,6 @@ internal class AccelerationProjector(
             .toDouble()
     }
 
-    /** Updates gravity and returns the linear vector with its vertical part removed. */
     private fun flattenedLinear(x: Float, y: Float, z: Float): FlattenedLinear? {
         if (!primed) {
             gravity[0] = x

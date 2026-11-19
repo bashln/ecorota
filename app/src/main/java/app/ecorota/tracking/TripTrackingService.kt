@@ -204,7 +204,6 @@ class TripTrackingService : Service() {
     private fun startMonitorUpdates(): Boolean {
         gate = MotionGate()
         if (motionSampler?.start() != true) {
-            // No accelerometer: fall back to today's always-on monitor stream.
             if (!locationSource.start(LocationProfile.MONITOR)) {
                 gate = null
                 return false
@@ -414,8 +413,6 @@ class TripTrackingService : Service() {
 
     private fun afterTripFinished(resumeMonitoring: Boolean) {
         if (resumeMonitoring && autoDetectionEnabled && hasLocationPermission() && locationEnabled()) {
-            // Fresh gate in STILL; the car is often still moving, so the next
-            // sample opens location and a second drive needs no user touch.
             beginMonitoring()
         } else {
             stopForegroundAndSelf()

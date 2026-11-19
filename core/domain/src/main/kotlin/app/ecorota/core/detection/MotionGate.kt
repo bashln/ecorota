@@ -20,8 +20,7 @@ enum class LocationDemand { OFF, ON }
 
 /**
  * Decides from a cheap motion stream when accurate location should run, so a
- * stationary phone requests no fixes. The three-phase machine keeps the demand
- * level stable: counters are derived state and are cleared on every transition.
+ * stationary phone requests no fixes.
  */
 class MotionGate(private val config: MotionGateConfig = MotionGateConfig()) {
 

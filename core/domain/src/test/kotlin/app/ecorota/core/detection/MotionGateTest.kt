@@ -115,10 +115,8 @@ class MotionGateTest {
         gate.onSample(movingSample(5, magnitude = still))
         assertEquals(LocationDemand.ON, gate.onSample(movingSample(6, magnitude = moving)))
 
-        // Quiet count restarted at 6. Three quiet samples are not enough, so the
-        // gate stays ON at index 9 and only turns OFF on the fourth at index 10.
-        for (i in 7..9) {
-            assertEquals(LocationDemand.ON, gate.onSample(movingSample(i, magnitude = still)))
+        repeat(config.quietSamples - 1) { index ->
+            assertEquals(LocationDemand.ON, gate.onSample(movingSample(7 + index, magnitude = still)))
         }
         assertEquals(LocationDemand.OFF, gate.onSample(movingSample(10, magnitude = still)))
     }
