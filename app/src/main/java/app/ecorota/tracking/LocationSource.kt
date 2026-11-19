@@ -5,7 +5,11 @@ enum class LocationProfile(
     val intervalMs: Long,
     val minDistanceMeters: Float,
 ) {
-    /** Low-power fixes frequent enough to confirm movement without a large delay. */
+    /**
+     * Frequent enough for the detector to confirm movement, and backed by a
+     * provider that reports speed: a fix every 30 s keeps the two-fix start
+     * window at a minute at most.
+     */
     MONITOR(intervalMs = 30_000L, minDistanceMeters = 0f),
 
     /** Higher resolution while a trip is scored, including while stopped. */

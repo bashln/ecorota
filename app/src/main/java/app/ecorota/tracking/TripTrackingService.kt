@@ -21,8 +21,9 @@ import androidx.core.app.ServiceCompat
 import androidx.core.content.ContextCompat
 import androidx.core.location.LocationManagerCompat
 import app.ecorota.R
+import app.ecorota.core.detection.SpeedEstimator
+import app.ecorota.core.detection.SpeedFix
 import app.ecorota.core.detection.TripDetector
-import app.ecorota.core.model.GeoMath
 import app.ecorota.core.model.GeoPoint
 import app.ecorota.core.model.ScoringVersion
 import app.ecorota.core.model.TelemetrySample
@@ -65,6 +66,7 @@ class TripTrackingService : Service() {
     private var analyzer: TripAnalyzer? = null
     private var detector: TripDetector? = null
     private var lastFix: Location? = null
+    private var lastSpeedMps = 0.0
     private var lastPublishedMs = 0L
 
     private var mode = Mode.IDLE
@@ -402,7 +404,7 @@ class TripTrackingService : Service() {
 
     private fun onMonitorFix(location: Location) {
         val currentDetector = detector ?: return
-        val speedKmh = speedMpsOf(location) * 3.6
+        val speedKmh = speedMpsOf(location, MONITOR_SPEED_WINDOW_MS)?.times(3.6) ?: return
         when (currentDetector.onFix(speedKmh, location.time)) {
             TripDetector.Signal.StartTrip -> beginRecording(manual = false)
             TripDetector.Signal.StopTrip -> Unit
@@ -416,7 +418,11 @@ class TripTrackingService : Service() {
         val bearing = if (location.hasBearing()) location.bearing.toDouble() else null
         fusion?.setHeading(bearing)
         val peaks = fusion?.consume() ?: SensorPeaks(null, null)
-        val speedMps = speedMpsOf(location)
+        // A coarse fix carries no usable speed; holding the last reading keeps
+        // the analyzer from turning a bad fix into a fake stop.
+        val speedMps = speedMpsOf(location, RECORDING_SPEED_WINDOW_MS)
+            ?.also { lastSpeedMps = it }
+            ?: lastSpeedMps
 
         val sample = TelemetrySample(
             timestampMs = location.time,
@@ -466,18 +472,24 @@ class TripTrackingService : Service() {
         updateRecordingNotification(distanceKm = analysis.distanceKm, score = scored.score)
     }
 
-    /** Speed from the fix, or from the previous fix when the provider omits it. */
-    private fun speedMpsOf(location: Location): Double {
-        if (location.hasSpeed()) return location.speed.toDouble()
-        val previous = lastFix ?: return 0.0
-        val deltaMs = location.time - previous.time
-        if (deltaMs <= 0L || deltaMs > MAX_DERIVED_SPEED_WINDOW_MS) return 0.0
-        val distance = GeoMath.distanceMeters(
-            GeoPoint(previous.latitude, previous.longitude),
-            GeoPoint(location.latitude, location.longitude),
+    /**
+     * Speed from the fix itself, or derived from the previous one. Null means the
+     * fix cannot tell how fast the vehicle is moving, so the caller must skip it
+     * rather than treat it as a standstill.
+     */
+    private fun speedMpsOf(location: Location, windowMs: Long): Double? =
+        SpeedEstimator.speedMps(
+            current = location.toSpeedFix(),
+            previous = lastFix?.toSpeedFix(),
+            windowMs = windowMs,
         )
-        return distance / (deltaMs / 1000.0)
-    }
+
+    private fun Location.toSpeedFix(): SpeedFix = SpeedFix(
+        timestampMs = time,
+        point = GeoPoint(latitude, longitude),
+        reportedSpeedMps = if (hasSpeed()) speed.toDouble() else null,
+        accuracyMeters = if (hasAccuracy()) accuracy.toDouble() else Double.NaN,
+    )
 
     private fun releaseRecording() {
         analyzer = null
@@ -485,6 +497,7 @@ class TripTrackingService : Service() {
         sensorFusion?.stop()
         locationSource.stop()
         lastFix = null
+        lastSpeedMps = 0.0
     }
 
     private fun trackingStateIsIdle() {
@@ -626,7 +639,14 @@ class TripTrackingService : Service() {
         private const val CHANNEL_ID = "trip_tracking"
         private const val NOTIFICATION_ID = 42
         private const val UNKNOWN_ACCURACY_METERS = 25.0
-        private const val MAX_DERIVED_SPEED_WINDOW_MS = 10_000L
+
+        /**
+         * Monitoring asks for a fix every 30 s, so a fix without a speed field
+         * must be allowed to compare against one from up to three intervals
+         * back. Recording gets a fix every 3 s and needs a tighter window.
+         */
+        private const val MONITOR_SPEED_WINDOW_MS = 90_000L
+        private const val RECORDING_SPEED_WINDOW_MS = 10_000L
         private const val LIVE_PUBLISH_INTERVAL_MS = 5_000L
 
         const val ACTION_START_MONITOR = "app.ecorota.tracking.START_MONITOR"

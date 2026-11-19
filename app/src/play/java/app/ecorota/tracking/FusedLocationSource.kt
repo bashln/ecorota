@@ -77,12 +77,14 @@ class FusedLocationSource(
 
     @SuppressLint("MissingPermission") // Checked by hasPermission above.
     private fun startFused(profile: LocationProfile): Boolean {
-        val priority = if (profile == LocationProfile.MONITOR) {
-            Priority.PRIORITY_LOW_POWER
-        } else {
-            Priority.PRIORITY_BALANCED_POWER_ACCURACY
-        }
-        val builder = LocationRequest.Builder(priority, profile.intervalMs)
+        // Low power answers about once every few minutes with a city-level
+        // accuracy and no usable speed, which is why auto-detection never
+        // noticed a drive. Both profiles now ask for balanced power, which
+        // still defers to the low-power radio indoors but honours the interval.
+        val builder = LocationRequest.Builder(
+            Priority.PRIORITY_BALANCED_POWER_ACCURACY,
+            profile.intervalMs,
+        )
             .setMinUpdateDistanceMeters(profile.minDistanceMeters)
             .setWaitForAccurateLocation(false)
         if (profile == LocationProfile.RECORDING) {
@@ -109,7 +111,7 @@ class FusedLocationSource(
     @SuppressLint("MissingPermission") // Checked by hasPermission above.
     private fun startPlatform(profile: LocationProfile): Boolean {
         val manager = appContext.getSystemService(LocationManager::class.java) ?: return false
-        val provider = selectPlatformProvider(manager, profile) ?: run {
+        val provider = selectPlatformProvider(manager) ?: run {
             Log.w(TAG, "No platform location provider is enabled")
             return false
         }
@@ -133,12 +135,11 @@ class FusedLocationSource(
     }
 
     /**
-     * Monitoring prefers the network provider because it is cheap and does not
-     * need a sky view. Recording prefers GPS and falls back to network indoors.
+     * GPS first: the trip detector compares speed against thresholds and only
+     * GPS reports one. The network provider is the fallback while GPS is off.
      */
     private fun selectPlatformProvider(
         manager: LocationManager,
-        profile: LocationProfile,
     ): String? {
         val network = manager.isProviderEnabled(LocationManager.NETWORK_PROVIDER)
         val gps = manager.isProviderEnabled(LocationManager.GPS_PROVIDER)
@@ -147,7 +148,6 @@ class FusedLocationSource(
             Manifest.permission.ACCESS_FINE_LOCATION,
         ) == PackageManager.PERMISSION_GRANTED
         return when {
-            profile == LocationProfile.MONITOR && network -> LocationManager.NETWORK_PROVIDER
             hasFine && gps -> LocationManager.GPS_PROVIDER
             network -> LocationManager.NETWORK_PROVIDER
             else -> null
