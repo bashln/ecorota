@@ -42,6 +42,20 @@ class MotionGateTest {
     }
 
     @Test
+    fun `still samples reset an incomplete confirmation every time`() {
+        val gate = gate()
+        var index = 0
+
+        repeat(5) {
+            assertEquals(LocationDemand.OFF, gate.onSample(movingSample(index++, magnitude = moving)))
+            assertEquals(LocationDemand.OFF, gate.onSample(movingSample(index++, magnitude = moving)))
+            assertEquals(LocationDemand.OFF, gate.onSample(movingSample(index++, magnitude = still)))
+        }
+
+        assertEquals(LocationDemand.OFF, gate.demand())
+    }
+
+    @Test
     fun `an above threshold sample in suspect enters active and emits on`() {
         val gate = gate()
 
