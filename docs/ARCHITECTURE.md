@@ -24,11 +24,12 @@ SensorFusion ──────────┘                                  
                                   LiveTripState (HUD)                    TripRecord -> Room
 ```
 
-1. `TripTrackingService` runs as a location foreground service. In monitoring mode it uses low-power fixes to decide when a drive starts. In recording mode it requests balanced-power fixes every few seconds.
-2. `SensorFusion` low-pass filters gravity out of the accelerometer and projects linear acceleration onto the vehicle's forward and lateral axes, using the GPS bearing as heading. If no bearing is available, the analyzer derives acceleration from GPS speed changes.
-3. `TripAnalyzer` accumulates distance, moving and idle time, speed samples, a thinned route, and detected events. It is a state machine, not a batch job, so the same object serves the live HUD and the final record.
-4. `TripScorer` turns the analysis into a `ScoreBreakdown`, a `FuelEstimate`, and scored `DrivingEvent`s. It is pure and deterministic for a given analysis, vehicle, and configuration.
-5. On stop, the service discards trivial recordings, then writes a `TripRecord` through `TripRepository`. Route points are encoded with the Google polyline algorithm and carry one timestamped speed sample each, so map rendering and GPX export reuse the same exact times.
+1. `TripTrackingService` runs as a location foreground service. In monitoring mode it asks for a fix every 30 s to decide when a drive starts. In recording mode it requests balanced-power fixes every few seconds.
+2. `SpeedEstimator` turns a fix into a speed the detector can compare: it trusts the provider's speed only on a fix accurate to 100 m or better, and otherwise derives the speed from the previous fix. A fix that cannot tell speed at all is skipped instead of read as a standstill.
+3. `SensorFusion` low-pass filters gravity out of the accelerometer and projects linear acceleration onto the vehicle's forward and lateral axes, using the GPS bearing as heading. If no bearing is available, the analyzer derives acceleration from GPS speed changes.
+4. `TripAnalyzer` accumulates distance, moving and idle time, speed samples, a thinned route, and detected events. It is a state machine, not a batch job, so the same object serves the live HUD and the final record.
+5. `TripScorer` turns the analysis into a `ScoreBreakdown`, a `FuelEstimate`, and scored `DrivingEvent`s. It is pure and deterministic for a given analysis, vehicle, and configuration.
+6. On stop, the service discards trivial recordings, then writes a `TripRecord` through `TripRepository`. Route points are encoded with the Google polyline algorithm and carry one timestamped speed sample each, so map rendering and GPX export reuse the same exact times.
 
 ## Package responsibilities
 
@@ -94,7 +95,7 @@ osmdroid renders OpenStreetMap tiles. Tiles are cached on disk. Any network down
 
 ## Location providers
 
-The play flavor uses the Fused Location Provider and falls back to the platform `LocationManager` when Play services is unavailable. The libre flavor compiles only the platform provider, so its APK contains no Google location code. Both share the same two profiles: a low-power monitor and a balanced-power recording stream.
+The play flavor uses the Fused Location Provider and falls back to the platform `LocationManager` when Play services is unavailable. The libre flavor compiles only the platform provider, so its APK contains no Google location code. Both share the same two profiles: a monitor stream every 30 s and a recording stream every few seconds. Both profiles ask for a provider that reports speed, because the detector compares speed against thresholds; the network provider only answers when GPS is off.
 
 Automatic detection is restored after a reboot by a boot receiver, but only when the user enabled it and still granted all-the-time location.
 

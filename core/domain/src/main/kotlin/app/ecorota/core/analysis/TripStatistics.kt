@@ -1,5 +1,6 @@
 package app.ecorota.core.analysis
 
+import app.ecorota.core.model.Money
 import app.ecorota.core.model.TripListItem
 import java.time.Instant
 import java.time.LocalDate
@@ -32,7 +33,7 @@ object TripStatistics {
             distanceMeters = trips.sumOf { it.distanceMeters },
             averageScore = trips.map { it.score }.average(),
             avoidableLiters = trips.sumOf { it.avoidableLiters },
-            avoidableCost = trips.sumOf { it.avoidableCost },
+            avoidableCost = Money.sumToCents(trips.map { it.avoidableCost }),
         )
     }
 
@@ -53,7 +54,7 @@ object TripStatistics {
                     distanceMeters = dailyTrips.sumOf { it.distanceMeters },
                     averageScore = dailyTrips.map { it.score }.average(),
                     avoidableLiters = dailyTrips.sumOf { it.avoidableLiters },
-                    avoidableCost = dailyTrips.sumOf { it.avoidableCost },
+                    avoidableCost = Money.sumToCents(dailyTrips.map { it.avoidableCost }),
                 )
             }
             .sortedBy { it.epochDay }

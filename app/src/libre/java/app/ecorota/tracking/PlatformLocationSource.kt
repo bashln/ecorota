@@ -13,9 +13,9 @@ import androidx.core.content.ContextCompat
 
 /**
  * Platform location provider for the community build. It has no Google Play
- * services dependency; monitoring prefers the network provider because it is
- * cheap, and recording prefers GPS because the scoring engine needs speed and
- * heading resolution.
+ * services dependency. Both profiles ask GPS first because the trip detector
+ * compares speed against thresholds and the network provider reports none; the
+ * network provider is the fallback while GPS is off.
  */
 class PlatformLocationSource(
     context: Context,
@@ -49,8 +49,11 @@ class PlatformLocationSource(
         ) == PackageManager.PERMISSION_GRANTED
         val gps = locationManager.isProviderEnabled(LocationManager.GPS_PROVIDER)
         val network = locationManager.isProviderEnabled(LocationManager.NETWORK_PROVIDER)
+        // GPS first: it is the only provider that reports a speed the trip
+        // detector can trust, and monitoring never starts a trip without one.
+        // The network provider only answers while GPS is off, where an
+        // automatic start is best effort anyway.
         val provider = when {
-            profile == LocationProfile.MONITOR && network -> LocationManager.NETWORK_PROVIDER
             hasFine && gps -> LocationManager.GPS_PROVIDER
             network -> LocationManager.NETWORK_PROVIDER
             else -> null

@@ -31,6 +31,23 @@ class TripStatisticsTest {
     }
 
     @Test
+    fun `daily cost adds up the cents each trip displays`() {
+        val daily = TripStatistics.byLocalDay(
+            listOf(
+                trip("a", instant("2024-01-01T10:00:00Z"), 4_000.0, score = 95, liters = 0.4, cost = 0.127),
+                trip("b", instant("2024-01-01T18:00:00Z"), 4_600.0, score = 97, liters = 0.4, cost = 0.005),
+            ),
+            offsetMinutes = 0,
+        )
+
+        assertEquals(0.14, daily.single().avoidableCost, 1e-9)
+        assertEquals(0.14, TripStatistics.totals(listOf(
+            trip("a", instant("2024-01-01T10:00:00Z"), 4_000.0, score = 95, liters = 0.4, cost = 0.127),
+            trip("b", instant("2024-01-01T18:00:00Z"), 4_600.0, score = 97, liters = 0.4, cost = 0.005),
+        )).avoidableCost, 1e-9)
+    }
+
+    @Test
     fun `byLocalDay groups and sorts ascending`() {
         val daily = TripStatistics.byLocalDay(
             listOf(

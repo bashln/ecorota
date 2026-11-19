@@ -8,6 +8,7 @@ import androidx.lifecycle.viewmodel.viewModelFactory
 import app.ecorota.core.analysis.DailyTripTotals
 import app.ecorota.core.analysis.TripStatistics
 import app.ecorota.core.analysis.TripTotals
+import app.ecorota.core.model.Money
 import app.ecorota.core.model.TripListItem
 import app.ecorota.core.model.VehicleProfile
 import app.ecorota.di.AppContainer
@@ -96,7 +97,9 @@ class HistoryViewModel(container: AppContainer) : ViewModel() {
                     val displayCost = if (singleDayCurrency != null) {
                         totals.avoidableCost
                     } else {
-                        dayTrips.filter { it.currency == activeCurrency }.sumOf { it.avoidableCost }
+                        Money.sumToCents(
+                            dayTrips.filter { it.currency == activeCurrency }.map { it.avoidableCost },
+                        )
                     }
                     HistoryDay(
                         epochDay = epochDay,
@@ -114,7 +117,7 @@ class HistoryViewModel(container: AppContainer) : ViewModel() {
             val totals = dailyTotals[epochDay]
             val dayCurrencyCost = tripsByDay[epochDay]
                 ?.filter { it.currency == activeCurrency }
-                ?.sumOf { it.avoidableCost }
+                ?.let { trips -> Money.sumToCents(trips.map { it.avoidableCost }) }
                 ?: 0.0
             TrendPoint(
                 epochDay = epochDay,
@@ -127,9 +130,11 @@ class HistoryViewModel(container: AppContainer) : ViewModel() {
         val rawTotals = TripStatistics.totals(sortedTrips)
         val currencyFilteredTotals = if (hasMixedCurrencies && rawTotals != null) {
             rawTotals.copy(
-                avoidableCost = sortedTrips
-                    .filter { it.currency == activeCurrency }
-                    .sumOf { it.avoidableCost },
+                avoidableCost = Money.sumToCents(
+                    sortedTrips
+                        .filter { it.currency == activeCurrency }
+                        .map { it.avoidableCost },
+                ),
             )
         } else {
             rawTotals
