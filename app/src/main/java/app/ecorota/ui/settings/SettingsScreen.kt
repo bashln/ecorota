@@ -90,6 +90,7 @@ import app.ecorota.ui.util.findActivity
 import app.ecorota.ui.util.openExternalUrl
 import java.util.Locale
 import java.util.UUID
+import kotlin.math.abs
 import kotlin.math.roundToInt
 
 @Stable
@@ -840,6 +841,7 @@ private fun ScoringSection(
                 R.string.settings_scoring_mps2,
                 oneDecimal(draft.hardAccelThresholdMps2, locale),
             ),
+            defaultValue = defaults.hardAccelThresholdMps2.toFloat(),
             defaultText = stringResource(
                 R.string.settings_scoring_default,
                 stringResource(
@@ -860,6 +862,7 @@ private fun ScoringSection(
                 R.string.settings_scoring_mps2,
                 oneDecimal(draft.hardBrakeThresholdMps2, locale),
             ),
+            defaultValue = defaults.hardBrakeThresholdMps2.toFloat(),
             defaultText = stringResource(
                 R.string.settings_scoring_default,
                 stringResource(
@@ -880,6 +883,7 @@ private fun ScoringSection(
                 R.string.settings_scoring_mps2,
                 oneDecimal(draft.sharpCornerThresholdMps2, locale),
             ),
+            defaultValue = defaults.sharpCornerThresholdMps2.toFloat(),
             defaultText = stringResource(
                 R.string.settings_scoring_default,
                 stringResource(
@@ -901,6 +905,7 @@ private fun ScoringSection(
                 Formatters.speedValue(draft.overspeedThresholdKmh, speedUnit).roundToInt(),
                 speedLabel,
             ),
+            defaultValue = defaults.overspeedThresholdKmh.toFloat(),
             defaultText = stringResource(
                 R.string.settings_scoring_default,
                 stringResource(
@@ -922,6 +927,7 @@ private fun ScoringSection(
                 R.string.settings_scoring_idle_value,
                 (draft.idleMinDurationMs / 1_000).toInt(),
             ),
+            defaultValue = (defaults.idleMinDurationMs / 1_000).toFloat(),
             defaultText = stringResource(
                 R.string.settings_scoring_default,
                 stringResource(
@@ -952,6 +958,7 @@ private fun ScoringSection(
 private fun ThresholdSlider(
     label: String,
     valueText: String,
+    defaultValue: Float,
     defaultText: String,
     value: Float,
     range: ClosedFloatingPointRange<Float>,
@@ -977,11 +984,14 @@ private fun ThresholdSlider(
             onValueChangeFinished = onValueChangeFinished,
             valueRange = range,
         )
-        Text(
-            text = defaultText,
-            style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
+        // The default is only worth a line when the trip threshold is somewhere else.
+        if (abs(value - defaultValue) > 0.001f) {
+            Text(
+                text = defaultText,
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
     }
 }
 
