@@ -150,6 +150,42 @@ internal class AccelerationProjector(
     }
 
     fun project(x: Float, y: Float, z: Float): AxisAcceleration? {
+        val flattened = flattenedLinear(x, y, z) ?: return null
+
+        val forward = horizontalAxis(flattened.upX, flattened.upY, flattened.upZ) ?: return null
+        val rightX = forward[1] * flattened.upZ - forward[2] * flattened.upY
+        val rightY = forward[2] * flattened.upX - forward[0] * flattened.upZ
+        val rightZ = forward[0] * flattened.upY - forward[1] * flattened.upX
+
+        return AxisAcceleration(
+            forwardMps2 = (
+                flattened.linearX * forward[0] +
+                    flattened.linearY * forward[1] +
+                    flattened.linearZ * forward[2]
+                )
+                .coerceIn(-MAX_ACCELERATION_MPS2, MAX_ACCELERATION_MPS2)
+                .toDouble(),
+            lateralMps2 = abs(
+                flattened.linearX * rightX + flattened.linearY * rightY + flattened.linearZ * rightZ,
+            )
+                .coerceIn(0f, MAX_ACCELERATION_MPS2)
+                .toDouble(),
+        )
+    }
+
+    /** Horizontal acceleration magnitude, independent of the mount's forward axis. */
+    fun horizontalMagnitude(x: Float, y: Float, z: Float): Double? {
+        val flattened = flattenedLinear(x, y, z) ?: return null
+        return sqrt(
+            flattened.linearX * flattened.linearX +
+                flattened.linearY * flattened.linearY +
+                flattened.linearZ * flattened.linearZ,
+        )
+            .coerceIn(0f, MAX_ACCELERATION_MPS2)
+            .toDouble()
+    }
+
+    private fun flattenedLinear(x: Float, y: Float, z: Float): FlattenedLinear? {
         if (!primed) {
             gravity[0] = x
             gravity[1] = y
@@ -179,20 +215,17 @@ internal class AccelerationProjector(
         linearY -= vertical * upY
         linearZ -= vertical * upZ
 
-        val forward = horizontalAxis(upX, upY, upZ) ?: return null
-        val rightX = forward[1] * upZ - forward[2] * upY
-        val rightY = forward[2] * upX - forward[0] * upZ
-        val rightZ = forward[0] * upY - forward[1] * upX
-
-        return AxisAcceleration(
-            forwardMps2 = (linearX * forward[0] + linearY * forward[1] + linearZ * forward[2])
-                .coerceIn(-MAX_ACCELERATION_MPS2, MAX_ACCELERATION_MPS2)
-                .toDouble(),
-            lateralMps2 = abs(linearX * rightX + linearY * rightY + linearZ * rightZ)
-                .coerceIn(0f, MAX_ACCELERATION_MPS2)
-                .toDouble(),
-        )
+        return FlattenedLinear(upX, upY, upZ, linearX, linearY, linearZ)
     }
+
+    private data class FlattenedLinear(
+        val upX: Float,
+        val upY: Float,
+        val upZ: Float,
+        val linearX: Float,
+        val linearY: Float,
+        val linearZ: Float,
+    )
 
     private fun horizontalAxis(upX: Float, upY: Float, upZ: Float): FloatArray? {
         for (candidate in FORWARD_CANDIDATES) {
