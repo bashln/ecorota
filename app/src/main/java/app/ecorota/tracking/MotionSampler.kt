@@ -92,13 +92,7 @@ private class AndroidMotionSampler(
         if (!x.isFinite() || !y.isFinite() || !z.isFinite()) return
         if (!rotationGate.accepts(timestampNanos)) return
 
-        val projected = projector.project(x, y, z) ?: return
-        // The projector drops gravity and flattens onto the horizontal plane;
-        // its two components are the linear acceleration the gate scores.
-        val magnitude = sqrt(
-            projected.forwardMps2 * projected.forwardMps2 +
-                projected.lateralMps2 * projected.lateralMps2,
-        )
+        val magnitude = projector.horizontalMagnitude(x, y, z) ?: return
         onSample(MotionSample(timestampNanos = timestampNanos, magnitudeMps2 = magnitude))
     }
 }
