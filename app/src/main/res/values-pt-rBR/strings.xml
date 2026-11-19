@@ -233,7 +233,7 @@
     <string name="detail_component_braking">Frenagem brusca</string>
     <string name="detail_component_cornering">Curva acentuada</string>
     <string name="detail_component_speed">Velocidade alta</string>
-    <string name="detail_component_idling">Motor parado ligado</string>
+    <string name="detail_component_idling">Motor em ralenti</string>
     <string name="detail_component_score">%1$d / 100</string>
     <string name="detail_component_meta">Peso %1$s%% · perdeu %2$s pontos</string>
     <string name="detail_idle_share">Tempo parado: %1$s da viagem</string>
@@ -257,7 +257,7 @@
     <string name="event_hard_braking">Frenagem brusca</string>
     <string name="event_sharp_cornering">Curva acentuada</string>
     <string name="event_overspeed">Excesso de velocidade</string>
-    <string name="event_idling">Motor parado ligado</string>
+    <string name="event_idling">Motor em ralenti</string>
     <string name="severity_mild">Leve</string>
     <string name="severity_moderate">Moderada</string>
     <string name="severity_severe">Grave</string>
