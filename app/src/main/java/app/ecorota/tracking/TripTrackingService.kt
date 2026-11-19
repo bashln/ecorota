@@ -21,6 +21,9 @@ import androidx.core.app.ServiceCompat
 import androidx.core.content.ContextCompat
 import androidx.core.location.LocationManagerCompat
 import app.ecorota.R
+import app.ecorota.core.detection.LocationDemand
+import app.ecorota.core.detection.MotionGate
+import app.ecorota.core.detection.MotionSample
 import app.ecorota.core.detection.SpeedEstimator
 import app.ecorota.core.detection.SpeedFix
 import app.ecorota.core.detection.TripDetector
@@ -62,6 +65,9 @@ class TripTrackingService : Service() {
     )
 
     private lateinit var locationSource: LocationSource
+    private var motionSampler: MotionSampler? = null
+    private var gate: MotionGate? = null
+    private var locationActive = false
     private var sensorFusion: SensorFusion? = null
     private var analyzer: TripAnalyzer? = null
     private var detector: TripDetector? = null
@@ -80,6 +86,7 @@ class TripTrackingService : Service() {
         super.onCreate()
         createNotificationChannel()
         locationSource = createLocationSource(this) { location -> onFix(location) }
+        motionSampler = createMotionSampler(this) { sample -> onMotionSample(sample) }
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -116,6 +123,7 @@ class TripTrackingService : Service() {
 
     override fun onDestroy() {
         scope.cancel()
+        motionSampler?.stop()
         releaseRecording()
         detector = null
         locationSource.stop()
@@ -192,13 +200,34 @@ class TripTrackingService : Service() {
     }
 
     private fun startMonitorUpdates(): Boolean {
-        detector = TripDetector()
-        if (!locationSource.start(LocationProfile.MONITOR)) {
-            detector = null
-            return false
+        gate = MotionGate()
+        if (motionSampler?.start() != true) {
+            // No accelerometer: fall back to today's always-on monitor stream.
+            if (!locationSource.start(LocationProfile.MONITOR)) {
+                gate = null
+                return false
+            }
+            locationActive = true
         }
+        detector = TripDetector()
         TrackingStateHolder.setMonitoring(true)
         return true
+    }
+
+    private fun onMotionSample(sample: MotionSample) {
+        val demand = gate?.onSample(sample) ?: return
+        when (demand) {
+            LocationDemand.OFF -> if (locationActive) {
+                locationSource.stop()
+                locationActive = false
+            }
+            LocationDemand.ON -> if (!locationActive) {
+                locationActive = locationSource.start(LocationProfile.MONITOR)
+                if (!locationActive) {
+                    Log.w(TAG, "Motion gate ON but location updates could not start")
+                }
+            }
+        }
     }
 
     private fun stopMonitoring() {
@@ -210,8 +239,11 @@ class TripTrackingService : Service() {
     }
 
     private fun stopMonitorUpdates() {
+        motionSampler?.stop()
+        if (locationActive || mode == Mode.MONITORING) locationSource.stop()
+        locationActive = false
+        gate = null
         detector = null
-        if (mode == Mode.MONITORING) locationSource.stop()
         TrackingStateHolder.setMonitoring(false)
     }
 
@@ -380,6 +412,8 @@ class TripTrackingService : Service() {
 
     private fun afterTripFinished(resumeMonitoring: Boolean) {
         if (resumeMonitoring && autoDetectionEnabled && hasLocationPermission() && locationEnabled()) {
+            // Fresh gate in STILL; the car is often still moving, so the next
+            // sample opens location and a second drive needs no user touch.
             beginMonitoring()
         } else {
             stopForegroundAndSelf()
@@ -507,6 +541,9 @@ class TripTrackingService : Service() {
 
     private fun stopForegroundAndSelf() {
         mode = Mode.IDLE
+        motionSampler?.stop()
+        gate = null
+        locationActive = false
         detector = null
         releaseRecording()
         TrackingStateHolder.reset()
