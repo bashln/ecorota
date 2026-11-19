@@ -22,9 +22,9 @@ import com.google.android.gms.location.Priority
 /**
  * The two location streams tracking needs.
  *
- * Auto-detection asks for low-power fixes about every 30 seconds. Recording
- * trades battery for resolution and keeps receiving fixes while stationary so
- * the trip detector can confirm that the car has parked.
+ * Both profiles ask for balanced-power fixes that report speed: monitoring
+ * every 30 seconds, recording every few seconds. Recording keeps receiving
+ * fixes while stationary so the trip detector can confirm the car has parked.
  *
  * Google Play services is used when present. On de-Googled devices, common for
  * F-Droid users, the class falls back to the platform LocationManager so the

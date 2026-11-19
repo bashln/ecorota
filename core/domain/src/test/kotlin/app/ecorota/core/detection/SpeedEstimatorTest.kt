@@ -1,5 +1,6 @@
 package app.ecorota.core.detection
 
+import app.ecorota.core.model.GeoMath
 import app.ecorota.core.model.GeoPoint
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -102,6 +103,28 @@ class SpeedEstimatorTest {
     }
 
     @Test
+    fun `a fix at the accuracy boundary is trusted`() {
+        val speed = SpeedEstimator.speedMps(
+            current = fix(atMs = 0L, speedMps = 8.0, accuracyMeters = 100.0),
+            previous = null,
+            windowMs = windowMs,
+        )
+
+        assertEquals(8.0, speed!!, 1e-9)
+    }
+
+    @Test
+    fun `a clock regression yields no derived speed`() {
+        val speed = SpeedEstimator.speedMps(
+            current = fix(atMs = 0L, speedMps = null, accuracyMeters = 5.0, metersEast = 300.0),
+            previous = fix(atMs = 30_000L, speedMps = null, accuracyMeters = 5.0),
+            windowMs = windowMs,
+        )
+
+        assertNull(speed)
+    }
+
+    @Test
     fun `a coarse previous fix cannot anchor a derived speed`() {
         val speed = SpeedEstimator.speedMps(
             current = fix(atMs = 30_000L, speedMps = null, accuracyMeters = 5.0, metersEast = 300.0),
@@ -121,13 +144,16 @@ class SpeedEstimatorTest {
         timestampMs = atMs,
         point = GeoPoint(
             latitude = 0.0,
-            longitude = metersEast / METERS_PER_DEGREE_LONGITUDE_AT_EQUATOR,
+            longitude = metersEast / metersPerDegree(),
         ),
         reportedSpeedMps = speedMps,
         accuracyMeters = accuracyMeters,
     )
 
     private companion object {
-        const val METERS_PER_DEGREE_LONGITUDE_AT_EQUATOR = 111_319.49
+        // Derive from the same geodesic the estimator uses, so the test does
+        // not encode a different Earth radius than production code.
+        fun metersPerDegree(): Double =
+            GeoMath.distanceMeters(GeoPoint(0.0, 0.0), GeoPoint(0.0, 1.0))
     }
 }
